@@ -1,0 +1,220 @@
+{
+  "công nghiệp - nông nghiệp": {
+    "id": 88,
+    "slug": "cong-nghiep-nong-nghiep",
+    "subcategories": {
+      "máy công nghiệp nhẹ": 661,
+      "strapack": 662,
+      "nikka": 663,
+      "supper pack": 664,
+      "máy công nghiệp nặng": 665,
+      "máy đã qua sử dụng": 666,
+      "máy nông nghiệp": 667,
+      "phân bón - thuốc trừ sâu": 668
+    }
+  },
+  "dịch vụ & du lịch": {
+    "id": 84,
+    "slug": "dich-vu-du-lich",
+    "subcategories": {
+      "xây dựng, nội thất": 618,
+      "điện, điện tử, điện lạnh": 619,
+      "nước, vệ sinh, cầu cống": 620,
+      "vận chuyển, dọn nhà": 621,
+      "in ấn, dịch thuật": 622,
+      "tổ chức sự kiện": 623,
+      "tư vấn thuế, tài chính": 624,
+      "thẩm mỹ, y tế": 625,
+      "thiết kế web, phần mềm": 626,
+      "du lịch, khách sạn, vé": 627,
+      "cầm đồ": 628,
+      "tư vấn luật, thủ tục": 629,
+      "dịch vụ khác": 630,
+      "nhà hàng - quán ăn": 631,
+      "đào tạo": 632,
+      "bảo hiểm": 633
+    }
+  },
+  "máy tính-máy ảnh máy quay": {
+    "id": 80,
+    "slug": "may-tinh-laptop",
+    "subcategories": {
+      "laptop theo nhãn hiệu": 586,
+      "máy tính bàn": 587,
+      "phụ kiện máy tính": 588,
+      "linh kiện máy tính": 589,
+      "phụ kiện chơi game": 590,
+      "thiết bị mạng": 591,
+      "máy văn phòng": 592,
+      "nạp mực in": 593,
+      "phần mềm máy tính": 594,
+      "máy ảnh - máy quay - phụ kiện": 595,
+      "thiết bị âm thanh": 596,
+      "linh kiện máy văn phòng": 597
+    }
+  },
+  "mẹ & bé": {
+    "id": 86,
+    "slug": "me-be",
+    "subcategories": {
+      "thời trang trẻ em": 641,
+      "giày dép trẻ em": 642,
+      "balo- túi - vali trẻ em": 643,
+      "phụ kiện trẻ em": 644,
+      "đồ dùng trẻ em": 645,
+      "đồ chơi trẻ em": 646,
+      "đồ cho mẹ": 647
+    }
+  },
+  "nghệ thuật & mỹ thuật": {
+    "id": 83,
+    "slug": "nhac-cu-am-nhac",
+    "subcategories": {
+      "nhạc cụ": 616,
+      "chuyên mục mỹ thuật": 617
+    }
+  },
+  "ô tô - xe máy - xe đạp": {
+    "id": 81,
+    "slug": "oto-xemay-xedap",
+    "subcategories": {
+      "ôtô": 598,
+      "xe máy": 599,
+      "xe đạp": 600,
+      "chăm sóc và bảo dưỡng": 601,
+      "hãng xe ôtô": 602,
+      "hãng xe máy": 603,
+      "hãng xe đạp": 604
+    }
+  },
+  "sách & ebook": {
+    "id": 87,
+    "slug": "sach-ebook",
+    "subcategories": {
+      "sách giáo khoa": 648,
+      "sách văn học - tiểu thuyết": 649,
+      "sách tiểu thuyết": 650,
+      "sách kỹ năng sống": 651,
+      "sách ngoại ngữ - từ điển": 652,
+      "sách truyện thiếu thi": 653,
+      "ebook": 654,
+      "sách văn học trong nước": 655,
+      "sách văn học nước ngoài": 656,
+      "sách chuyên ngành": 657,
+      "sách kinh tế": 658,
+      "sách - ebook": 659,
+      "văn phòng phẩm": 660
+    }
+  },
+  "siêu thị bách hóa": {
+    "id": 78,
+    "slug": "sieu-thi-bach-hoa",
+    "subcategories": {
+      "thực phẩm": 566,
+      "ăn vặt - bánh kẹo": 567,
+      "đồ uống": 568,
+      "đồ hộp và đóng gói": 569,
+      "sữa - tả - bình sữa": 570,
+      "đậu - hạt": 571,
+      "đặc sản quà biếu": 572,
+      "nấu ăn - làm bánh": 573,
+      "đồ nấu ăn": 574,
+      "bột giặt, nước xả": 575,
+      "chăm sóc thú cưng": 576,
+      "giấy, khăn và vật dụng khác": 577,
+      "vật dụng gia đình": 578,
+      "vật dụng tiện lợi": 579,
+      "tiện ích gia đình": 580
+    }
+  },
+  "sức khỏe & sắc đẹp": {
+    "id": 76,
+    "slug": "suc-khoe-sac-dep",
+    "subcategories": {
+      "nước hoa": 543,
+      "chăm sóc da nữ": 544,
+      "tóc & phụ kiện tóc": 545,
+      "thực phẩm chức năng": 546,
+      "thiết bị chăm sóc cá nhân": 547,
+      "chăm sóc cho nam giới": 548,
+      "trang điểm": 549,
+      "sản phẩm hỗ trợ tình dục": 550,
+      "phụ kiện trang điểm": 551,
+      "thiết bị y tế": 552,
+      "spa": 553,
+      "dụng cụ thể dục thể thao": 554
+    }
+  },
+  "thời trang & phụ kiện": {
+    "id": 77,
+    "slug": "thoi-trang-phu-kien",
+    "subcategories": {
+      "thời trang nữ": 555,
+      "trang sức - phụ kiện nữ": 556,
+      "giày dép nữ": 557,
+      "thời trang nam": 558,
+      "phụ kiện thời trang nam": 559,
+      "giày dép nam": 560,
+      "ví - ba lô - túi xách nữ": 561,
+      "ví - ba lô - túi xách nam": 562,
+      "đồng phục": 563,
+      "đồ bảo hộ": 564,
+      "vàng bạc đá quý": 565
+    }
+  },
+  "vật liệu xây dựng": {
+    "id": 89,
+    "slug": "vat-lieu-xay-dung",
+    "subcategories": {
+      "phụ kiện nhà tắm": 669,
+      "nội thất phòng ngủ": 670,
+      "nội thất phòng khách": 671,
+      "vật phẩm phong thủy - thờ cúng": 672,
+      "vật liệu xây dựng": 673,
+      "đồ gia dụng": 674,
+      "trang trí": 675,
+      "xây nhà và thiết kế": 676
+    }
+  },
+  "đăng tin-quảng cáo bđs": {
+    "id": 82,
+    "slug": "bat-dong-san",
+    "subcategories": {
+      "bán đất": 605,
+      "bán nhà, căn hộ": 606,
+      "sang nhượng cửa hàng": 607,
+      "cho thuê nhà đất": 608,
+      "cần mua nhà đất": 609,
+      "cần thuê nhà đất": 610,
+      "dịch vụ nhà đất": 611,
+      "dự án bất động sản lớn": 612,
+      "chuyên viên môi giới bất động sản": 613,
+      "sàn bất động sản": 614,
+      "dịch vụ bất động sản khác": 615
+    }
+  },
+  "điện dân dụng - điện lanh": {
+    "id": 85,
+    "slug": "dien-dan-dung-dien-lanh",
+    "subcategories": {
+      "thiết bị gia đình": 634,
+      "đồ dùng nhà bếp": 635,
+      "điện lạnh": 636,
+      "thương hiệu": 637,
+      "thiết bị sử dụng trong nhà": 638,
+      "thiết bị điện dân dụng": 639,
+      "âm thanh hình ảnh ánh sáng": 640
+    }
+  },
+  "điện thoại & tablet": {
+    "id": 79,
+    "slug": "dien-thoai-tablet",
+    "subcategories": {
+      "điện thoại di động": 581,
+      "điện thoại theo giá": 582,
+      "phụ kiện điện thoại": 583,
+      "máy tính bảng": 584,
+      "máy tính bảng theo giá": 585
+    }
+  }
+}

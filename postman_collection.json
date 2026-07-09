@@ -1,0 +1,851 @@
+{
+  "info": {
+    "name": "Delippy AI Service - Chat Pipeline Regression Tests",
+    "description": "Rewritten after the 2026-07-07 refactor: (1) pluggable LLM provider (AI_PROVIDER env var), (2) the old 'ask the user to teach the system' learning loop was fully removed (data-poisoning risk in aliases.json) and replaced by a 2-tier LLM query-expansion retry (free tier-1 from the AI parser, lazy tier-2 only on a genuine zero-result search), (3) memory_resolver.py no longer wipes conversation memory on cosmetic category-wording changes or on PRODUCT_INFO/COMPARE turns, (4) a zero-cost local-memory filter answers follow-ups from already-fetched products before hitting the API again, (5) asking about an unresolvable product reference (e.g. 'no' among 20 just-shown items) now asks a clarifying question instead of crashing, (6) history RAG (Mongo scan + cosine similarity) is now lazy - only computed when an LLM fallback call actually needs it. A collection-level test asserts no request ever 500s and the removed LEARNING_PROMPT/LEARNING_RESUME summaries never reappear. Run each folder top-to-bottom - multi-step folders reuse the same session_id to simulate a real conversation.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8000" }
+  ],
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "exec": [
+          "pm.test('never a 500 (server crash)', () => pm.expect(pm.response.code).to.not.eql(500));",
+          "if (pm.response.code === 200) {",
+          "  const j = pm.response.json();",
+          "  pm.test('learning loop stays removed - LEARNING_PROMPT/LEARNING_RESUME must never appear again', () => {",
+          "    pm.expect(['LEARNING_PROMPT', 'LEARNING_RESUME']).to.not.include(j.summary);",
+          "  });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Health",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/health"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('status 200', () => pm.response.to.have.status(200));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "1. Greeting (deterministic, $0)",
+      "item": [
+        {
+          "name": "Greeting",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Xin chào\",\n  \"session_id\": \"test_greeting\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.test('intent is GREETING', () => pm.expect(j.intent).to.eql('GREETING'));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "2. Deterministic category search (rule-based, no LLM)",
+      "item": [
+        {
+          "name": "Search common category - dien thoai",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"mua điện thoại\",\n  \"session_id\": \"test_category_phone\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.test('intent is SEARCH', () => pm.expect(j.intent).to.eql('SEARCH'));",
+              "pm.test('products returned', () => pm.expect(j.data.products.length).to.be.above(0));"
+            ]}
+          }]
+        },
+        {
+          "name": "Search common category - laptop",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"mua laptop\",\n  \"session_id\": \"test_category_laptop\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.test('products returned', () => pm.expect(j.data.products.length).to.be.above(0));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "3. Genuinely out-of-catalog term (deterministic empty result)",
+      "item": [
+        {
+          "name": "Search item the shop doesn't sell - thit tuoi",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"tìm thịt tươi\",\n  \"session_id\": \"test_out_of_catalog\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.test('well-formed response either way (backend may or may not actually carry this item)', () => {",
+              "  pm.expect(j.data.products).to.be.an('array');",
+              "  pm.expect(j.intent).to.eql('SEARCH');",
+              "});"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "4. Zero-result query expansion (replaces the old learning loop)",
+      "item": [
+        {
+          "name": "Search with an incomplete/colloquial term - balo di hoc",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"tìm balo đi học\",\n  \"session_id\": \"test_expansion_balo\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.test('never asks the user to teach the system anymore', () => pm.expect(j.summary).to.not.eql('LEARNING_PROMPT'));",
+              "pm.test('found real products via query expansion retry, not just balo\\'s literal 0 results', () => pm.expect(j.data.products.length).to.be.above(0));"
+            ]}
+          }]
+        },
+        {
+          "name": "Search a made-up nonsense term - should stay a clean 0-result, no crash",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"tìm zzxqwabc123 không tồn tại\",\n  \"session_id\": \"test_expansion_nonsense\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('status 200 even when every expansion variant also returns 0', () => pm.response.to.have.status(200));",
+              "const j = pm.response.json();",
+              "pm.test('summary is SEARCH (deterministic empty result), not LEARNING_PROMPT', () => pm.expect(j.summary).to.eql('SEARCH'));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "5. Ambiguous query -> AI parser fallback",
+      "item": [
+        {
+          "name": "Long/ambiguous phrasing needs the LLM parser",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Con tôi gần lên đại học và tôi muốn mua laptop giá tầm trung dưới 15tr\",\n  \"session_id\": \"test_ai_parser\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.test('intent resolved to SEARCH', () => pm.expect(j.intent).to.eql('SEARCH'));",
+              "pm.test('price_max carried through from the sentence', () => pm.expect(j.data.memory.price_max).to.eql(15000000));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "6. Multi-turn memory continuity (laptop shopping thread)",
+      "item": [
+        {
+          "name": "Step 1 - search laptop under budget",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Con tôi gần lên đại học và tôi muốn mua laptop giá tầm trung dưới 15tr\",\n  \"session_id\": \"test_memory_thread\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.test('products found', () => pm.expect(j.data.products.length).to.be.above(0));",
+              "pm.collectionVariables.set('memory_thread_count', j.data.memory.search_results.length);"
+            ]}
+          }]
+        },
+        {
+          "name": "Step 2 - ask about a subset already shown (used laptops)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Tôi muốn xem mấy cái laptop cũ á\",\n  \"session_id\": \"test_memory_thread\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.test('memory was NOT wiped by cosmetic category re-wording (regression: used to memory.clear() here)', () => {",
+              "  pm.expect(j.data.memory.search_results.length).to.be.above(0);",
+              "});"
+            ]}
+          }]
+        },
+        {
+          "name": "Step 3 - vague continuation referencing memory ('nao tôi nhớ...')",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Nãy tôi nhớ bạn còn có nhiều loại laptop cũ lắm mà\",\n  \"session_id\": \"test_memory_thread\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.test('still finds used laptops from memory instead of a fresh, possibly wrong-category 0-result search', () => {",
+              "  pm.expect(j.data.products.length).to.be.above(0);",
+              "});"
+            ]}
+          }]
+        },
+        {
+          "name": "Step 4 - ask brand filter, still same thread",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Có cái laptop asus nào còn hàng không bạn\",\n  \"session_id\": \"test_memory_thread\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.test('brand carried into memory', () => pm.expect(j.data.memory.brand).to.eql('asus'));"
+            ]}
+          }]
+        },
+        {
+          "name": "Step 5 - ambiguous reference among many products (crash regression)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Cho tôi xem chi tiết thông tin của nó\",\n  \"session_id\": \"test_memory_thread\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('status 200, NOT the old 500 AttributeError crash', () => pm.response.to.have.status(200));",
+              "const j = pm.response.json();",
+              "// The AI parser isn't deterministic here - 'no' among 20 products can",
+              "// reasonably resolve either to PRODUCT_INFO (ask which one) or back to",
+              "// SEARCH (show the relevant set again). Either is fine; a 500 crash or",
+              "// a confidently wrong single-product guess would not be.",
+              "pm.test('resolves to SEARCH or PRODUCT_INFO, never crashes or silently guesses', () => {",
+              "  pm.expect(['SEARCH', 'PRODUCT_INFO']).to.include(j.intent);",
+              "  if (j.intent === 'PRODUCT_INFO') {",
+              "    pm.expect(j.answer).to.include('sản phẩm nào');",
+              "    pm.expect(j.data.products.length).to.eql(0);",
+              "  }",
+              "});"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "7. Topic pivot (memory should still reset on a genuine topic change)",
+      "item": [
+        {
+          "name": "Step 1 - search laptop",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"mua laptop\",\n  \"session_id\": \"test_topic_pivot\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Step 2 - completely unrelated topic, same session",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"tìm áo thun nam\",\n  \"session_id\": \"test_topic_pivot\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.test('category switched away from laptop (memory reset on real pivot, did not over-correct into never clearing)', () => {",
+              "  pm.expect(j.data.memory.category).to.not.include('laptop');",
+              "});",
+              "pm.test('results are shirts, not stale laptops', () => {",
+              "  const names = j.data.products.map(p => p.name.toLowerCase()).join(' ');",
+              "  pm.expect(names).to.not.include('laptop');",
+              "});"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "8. PRODUCT_INFO self-heal (fuzzy slug -> real product)",
+      "item": [
+        {
+          "name": "Ask for detail using a loose product description",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"cho tôi xem chi tiết laptop cũ dell\",\n  \"session_id\": \"test_product_selfheal\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('status 200', () => pm.response.to.have.status(200));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "9. Reference resolution (single demonstrative reference)",
+      "item": [
+        {
+          "name": "Step 1 - search real estate",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"tìm bất động sản ở Hà Nội\",\n  \"session_id\": \"test_reference_resolve\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.test('intent is SEARCH', () => pm.expect(j.intent).to.eql('SEARCH'));"
+            ]}
+          }]
+        },
+        {
+          "name": "Step 2 - reference the first result, same session",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"cái đầu tiên đó cho tôi xem chi tiết\",\n  \"session_id\": \"test_reference_resolve\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.test('resolves to PRODUCT_INFO for a specific product instead of a fresh garbled search', () => pm.expect(j.intent).to.eql('PRODUCT_INFO'));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "10. FAQ",
+      "item": [
+        {
+          "name": "FAQ question",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"chính sách đổi trả như thế nào\",\n  \"session_id\": \"test_faq\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.test('classified as FAQ', () => pm.expect(j.intent).to.eql('FAQ'));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "11. Compare",
+      "item": [
+        {
+          "name": "Compare two products",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"so sánh iphone 15 và samsung s24\",\n  \"session_id\": \"test_compare\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.test('intent is COMPARE', () => pm.expect(j.intent).to.eql('COMPARE'));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "12. Pagination (xem thêm)",
+      "item": [
+        {
+          "name": "Step 1 - search",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"mua áo thun\",\n  \"session_id\": \"test_pagination\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Step 2 - xem thêm, same session",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"xem thêm\",\n  \"session_id\": \"test_pagination\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.test('pagination branch fires', () => pm.expect(['SEARCH_PAGINATION','SEARCH_PAGINATION_END']).to.include(j.summary));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "13. Advisory search (LLM formatter + lazy history path)",
+      "item": [
+        {
+          "name": "Advisory query - tu van",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"tư vấn giúp tôi nên chọn laptop nào tốt nhất trong tầm giá 15 triệu\",\n  \"session_id\": \"test_advisory\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.test('intent is SEARCH (advisory still search-based)', () => pm.expect(j.intent).to.eql('SEARCH'));",
+              "pm.test('answer is LLM-generated (non-trivial length)', () => pm.expect(j.answer.length).to.be.above(50));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "14. Chitchat / out-of-scope (distinct from GREETING)",
+      "item": [
+        {
+          "name": "Off-topic request - tell a joke",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Bạn kể chuyện cười cho tôi được không\",\n  \"session_id\": \"test_chitchat\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.test('classified as CHITCHAT, not the generic GREETING bucket', () => pm.expect(j.intent).to.eql('CHITCHAT'));",
+              "pm.test('does not reuse the shop-welcome greeting text verbatim', () => pm.expect(j.answer).to.not.include('Bạn cần mình giúp gì hôm nay'));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "15. Gibberish query does not hallucinate an unrelated product",
+      "item": [
+        {
+          "name": "Nonsense search term",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"tìm zzxqwabc123 không tồn tại\",\n  \"session_id\": \"test_gibberish\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.test('regression: query_expander must recognize gibberish and return empty products, not a random unrelated item', () => {",
+              "  pm.expect(j.data.products.length).to.eql(0);",
+              "});"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "16. Local-memory-filter must respect brand (regression: stale cache false negative)",
+      "item": [
+        {
+          "name": "Step 1 - search laptop (cache a non-Asus list)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"mua laptop\",\n  \"session_id\": \"test_cache_brand\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Step 2 - ask for a brand not in the cached subset - must hit real search, not cache",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Có cái laptop asus nào còn hàng không bạn\",\n  \"session_id\": \"test_cache_brand\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.test('brand recorded correctly', () => pm.expect(j.data.memory.brand).to.eql('asus'));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "17. COMPARE suggestion carries into a follow-up detail request",
+      "item": [
+        {
+          "name": "Step 1 - compare two products not in catalog",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"so sánh iphone 15 và samsung s24\",\n  \"session_id\": \"test_compare_followup\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.test('regression: related product suggestions must be saved to memory for follow-up reference', () => {",
+              "  pm.expect(j.data.memory.search_results.length).to.be.above(0);",
+              "});"
+            ]}
+          }]
+        },
+        {
+          "name": "Step 2 - ask to see details of the suggested alternative",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"cho tôi xem chi tiết sản phẩm bạn vừa gợi ý\",\n  \"session_id\": \"test_compare_followup\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.test('resolves to PRODUCT_INFO instead of an unrelated fresh search', () => pm.expect(j.intent).to.eql('PRODUCT_INFO'));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "18. Category-aware clarifying question (fix 2026-07-09: no more tech-flavored mismatch)",
+      "item": [
+        {
+          "name": "Broad food query never gets the electronics-flavored clarifying question",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"mua bánh kẹo\",\n  \"session_id\": \"test_clarify_food\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.test('regression: food query must never get the laptop-flavored \"đời mới nhất\" question', () => pm.expect(j.answer).to.not.include('đời mới nhất'));",
+              "pm.test('regression: food query must never get the laptop-flavored \"học tập, làm việc, giải trí\" question', () => pm.expect(j.answer).to.not.include('học tập, làm việc, giải trí'));",
+              "pm.test('template placeholder was substituted, not left literal', () => pm.expect(j.answer).to.not.include('{term}'));"
+            ]}
+          }]
+        },
+        {
+          "name": "Unresolved-category query stays universal-only (no tech-flavored guess)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"tôi cần mua đồ\",\n  \"session_id\": \"test_clarify_unresolved\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.test('regression: unresolved category must never get the laptop-flavored \"đời mới nhất\" question', () => pm.expect(j.answer).to.not.include('đời mới nhất'));",
+              "pm.test('regression: unresolved category must never get the laptop-flavored \"học tập, làm việc, giải trí\" question', () => pm.expect(j.answer).to.not.include('học tập, làm việc, giải trí'));"
+            ]}
+          }]
+        },
+        {
+          "name": "Appliance query gets its own phrasing, not tech's or food's (group separation)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"mua tủ lạnh\",\n  \"session_id\": \"test_clarify_appliance\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.test('appliance is its own group, not lumped into tech (\"học tập, làm việc, giải trí\" is laptop-only)', () => pm.expect(j.answer).to.not.include('học tập, làm việc, giải trí'));",
+              "pm.test('appliance never gets the food-flavored \"dự trữ\" question', () => pm.expect(j.answer).to.not.include('dự trữ'));",
+              "pm.test('template placeholder was substituted, not left literal', () => pm.expect(j.answer).to.not.include('{term}'));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "19. Backend rate-limit cooldown guard (fix 2026-07-09 - not Postman-assertable, see description)",
+      "item": [
+        {
+          "name": "NOTE - see description, no live 429 deliberately simulated here",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/health"
+          },
+          "description": "The 2026-07-09 fix added: (1) search_engine.py caps live re-verify fan-out (10 for category-anchored vector candidates, 3 for unanchored) instead of re-verifying all ~20, and raises the miss threshold to 0.82 for unanchored vector search; (2) delippy_client.py adds an in-process cooldown that short-circuits calls for N seconds after the backend returns 429; (3) main.py returns a clean 503 + Retry-After instead of a raw 500 while that cooldown is active. None of this is safely testable from Postman: deliberately forcing dev.delippy.com into a real 429 to verify the cooldown would be doing the exact thing this fix exists to prevent. It was verified instead via direct code review and isolated logic checks (see chat history for this session). This request is just a placeholder health check so the folder isn't empty.",
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('status 200', () => pm.response.to.have.status(200));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "20. Advisory follow-up only reuses cache for the SAME product (fix 2026-07-09)",
+      "item": [
+        {
+          "name": "Step 1 - search bánh tráng (seed cache)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"tìm bánh tráng\",\n  \"session_id\": \"test_advisory_new_signal\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.collectionVariables.set('advisory_step1_slugs', JSON.stringify((j.data.products || []).map(p => p.slug)));"
+            ]}
+          }]
+        },
+        {
+          "name": "Step 2 - advisory phrasing about a DIFFERENT product must re-search, not reuse cache",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"So sánh giá thì bánh quy nào ngon mà rẻ nhất hiện tại\",\n  \"session_id\": \"test_advisory_new_signal\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.test('regression: a genuinely different product noun (bánh quy vs bánh tráng) must trigger a fresh search, not reuse the stale cached list', () => {",
+              "  const prevSlugs = JSON.parse(pm.collectionVariables.get('advisory_step1_slugs') || '[]');",
+              "  const nowSlugs = (j.data.products || []).map(p => p.slug);",
+              "  pm.expect(nowSlugs).to.not.eql(prevSlugs);",
+              "});"
+            ]}
+          }]
+        },
+        {
+          "name": "Step 3 (new session) - search áo thun (seed cache)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"mua áo thun\",\n  \"session_id\": \"test_advisory_cache_reuse\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.collectionVariables.set('advisory_step3_slugs', JSON.stringify((j.data.products || []).map(p => p.slug)));"
+            ]}
+          }]
+        },
+        {
+          "name": "Step 4 - near-empty advisory query on the SAME topic must still ground in cache (no regression on the original bug #4 fix)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/v1/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"cái nào rẻ nhất vậy\",\n  \"session_id\": \"test_advisory_cache_reuse\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const j = pm.response.json();",
+              "pm.test('regression check: a near-empty advisory follow-up on the SAME topic still grounds in cache (must not silently drop to a different/empty result set)', () => {",
+              "  const prevSlugs = JSON.parse(pm.collectionVariables.get('advisory_step3_slugs') || '[]');",
+              "  const nowSlugs = (j.data.products || []).map(p => p.slug);",
+              "  pm.expect(nowSlugs).to.eql(prevSlugs);",
+              "});"
+            ]}
+          }]
+        }
+      ]
+    }
+  ]
+}

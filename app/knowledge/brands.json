@@ -1,0 +1,23 @@
+{
+  "apple": ["iphone", "ipad", "macbook", "apple watch", "airpods", "imac"],
+  "asus": ["rog", "tuf", "zenbook", "vivobook", "zenfone"],
+  "samsung": ["galaxy", "galaxy s", "galaxy a", "galaxy tab", "galaxy buds", "tivi samsung", "tủ lạnh samsung", "máy giặt samsung"],
+  "vinamilk": ["sữa tươi vinamilk", "sữa đặc ông thọ", "yomost", "sữa chua vinamilk"],
+  "oppo": ["reno", "find", "a78", "a58"],
+  "sony": ["playstation", "bravia", "wh-1000xm5", "wf-1000xm5", "srs-xb", "loa sony", "tivi sony"],
+  "honda": ["sh", "vision", "wave alpha", "air blade", "winner x", "lead"],
+  "yamaha": ["exciter", "sirius", "grande", "janus"],
+  "dell": ["inspiron", "vostro", "latitude", "xps", "alienware"],
+  "hp": ["pavilion", "envy", "spectre", "probook", "elitebook"],
+  "chanel": ["no 5", "coco mademoiselle", "bleu de chanel"],
+  "dior": ["sauvage", "miss dior", "jadore"],
+  "panasonic": ["tủ lạnh panasonic", "máy giặt panasonic", "máy lạnh panasonic", "quạt trần panasonic", "quạt đứng panasonic"],
+  "lg": ["tivi lg", "máy giặt lg", "tủ lạnh lg", "điều hòa lg"],
+  "toshiba": ["tủ lạnh toshiba", "máy giặt toshiba", "nồi cơm điện toshiba"],
+  "xiaomi": ["máy lọc không khí xiaomi", "robot hút bụi xiaomi", "mi band", "redmi", "poco"],
+  "daikin": ["máy lạnh daikin", "điều hòa daikin"],
+  "lock&lock": ["bình giữ nhiệt lock", "nồi chiên không dầu lock", "hộp cơm lock"],
+  "adidas": ["yeezy", "superstar", "stan smith", "ultraboost"],
+  "nike": ["air force 1", "air max", "jordan", "blazer"],
+  "puma": ["suede", "rs-x"]
+}

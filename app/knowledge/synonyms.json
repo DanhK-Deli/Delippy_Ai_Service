@@ -1,0 +1,20 @@
+{
+  "điện thoại di động": ["đt", "smartphone", "di động", "mobile"],
+  "laptop theo nhãn hiệu": ["máy tính xách tay", "lap", "notebook", "macbook"],
+  "sữa - tả - bình sữa": ["sữa tươi", "sữa đặc", "milk", "bỉm", "tã giấy", "tã", "pampers", "huggies"],
+  "ăn vặt - bánh kẹo": ["bánh ngọt", "bánh quy", "snack", "kẹo", "bim bim", "socola"],
+  "đồ uống": ["nước ngọt", "nước giải khát", "nước uống có ga", "soda", "bia", "rượu", "nước suối", "coca", "pepsi"],
+  "thời trang nam": ["quần nam", "áo nam", "sơ mi nam", "quần tây", "quần jean", "t-shirt nam", "khoác nam"],
+  "thời trang nữ": ["quần nữ", "áo nữ", "váy", "đầm", "chân váy", "sơ mi nữ", "t-shirt nữ", "croptop", "đồ bơi"],
+  "nước hoa": ["dầu thơm", "perfume"],
+  "thiết bị âm thanh": ["loa", "tai nghe", "headphone", "earbuds", "amply", "soundbar"],
+  "nhạc cụ": ["đàn", "guitar", "piano", "organ", "violin", "trống"],
+  "điện lạnh": ["tủ lạnh", "máy giặt", "máy lạnh", "máy điều hòa", "điều hòa nhiệt độ", "tủ đông", "tủ mát"],
+  "đồ dùng nhà bếp": ["bếp ga", "bếp từ", "nồi cơm điện", "chảo chống dính", "lò vi sóng", "bình đun siêu tốc", "nồi chiên không dầu"],
+  "thiết bị gia đình": ["máy hút bụi", "quạt điện", "quạt máy", "bàn là", "bàn ủi", "máy lọc nước", "máy lọc không khí"],
+  "nội thất phòng khách": ["sofa", "bàn trà", "kệ tivi", "ghế lười", "tủ giày", "ghế sofa"],
+  "nội thất phòng ngủ": ["giường ngủ", "nệm cao su", "đệm", "tủ quần áo", "bàn trang điểm", "ruột gối", "chăn ga gối nệm"],
+  "bán nhà, căn hộ": ["nhà nguyên căn", "chung cư", "căn hộ", "biệt thự", "nhà phố", "nhà cấp 4"],
+  "phụ kiện nhà tắm": ["vòi sen", "lavabo", "bồn cầu", "gương phòng tắm", "kệ inox nhà tắm"],
+  "ô tô - xe máy - xe đạp": ["phương tiện di chuyển", "phương tiện", "xe cộ", "xe", "ôtô", "xe máy", "xe đạp"]
+}

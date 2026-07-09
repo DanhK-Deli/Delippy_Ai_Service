@@ -1,0 +1,37 @@
+{
+  "universal": [
+    "Bạn có thương hiệu {term} nào yêu thích không, để Delippy lọc cho chính xác hơn?",
+    "Tầm giá bạn đang cân nhắc cho {term} là khoảng bao nhiêu để Delippy gợi ý sát hơn nhé?"
+  ],
+  "tech": [
+    "Bạn muốn tìm {term} đời mới nhất hay một dòng cụ thể nào không?",
+    "Bạn định dùng {term} chủ yếu để làm gì (học tập, làm việc, giải trí...) để Delippy tư vấn đúng nhu cầu hơn?"
+  ],
+  "appliance": [
+    "Bạn cần {term} cỡ nào hay công suất cho gia đình mấy người, để Delippy chọn cho phù hợp nhé?",
+    "Bạn có ưu tiên {term} tiết kiệm điện hay dòng nhiều tính năng cao cấp không?"
+  ],
+  "vehicle": [
+    "Bạn muốn tìm {term} đời mới hay dòng/phiên bản cụ thể nào không?",
+    "Bạn định đi {term} để di chuyển hằng ngày, đi xa hay chở hàng, để Delippy tư vấn đúng nhu cầu hơn?"
+  ],
+  "food": [
+    "Bạn cần {term} để dùng ngay hay mua dự trữ, và có loại/vị nào cụ thể không?",
+    "Bạn ưu tiên {term} loại phổ thông hay hàng nhập khẩu/cao cấp, để Delippy gợi ý sát hơn nhé?"
+  ],
+  "fashion": [
+    "Bạn cần {term} cho nam hay nữ, và size/màu nào để Delippy lọc cho đúng nhé?",
+    "Bạn thích {term} theo phong cách nào (trẻ trung, thanh lịch, năng động...) để Delippy gợi ý hợp gu hơn?"
+  ],
+  "beauty": [
+    "Bạn dùng {term} cho loại da/nhu cầu nào (da dầu, da khô, dưỡng ẩm, chống nắng...) để Delippy tư vấn phù hợp hơn nhé?",
+    "Bạn ưu tiên {term} lành tính/chiết xuất thiên nhiên hay hiệu quả nhanh, để Delippy chọn cho đúng không?"
+  ],
+  "baby": [
+    "Bé nhà mình khoảng bao nhiêu tuổi hay cân nặng bao nhiêu để Delippy chọn {term} cho phù hợp nhé?",
+    "Bạn cần {term} cho bé trai hay bé gái, và có ưu tiên thương hiệu an toàn nào không?"
+  ],
+  "book": [
+    "Bạn quan tâm {term} thuộc thể loại nào (văn học, kỹ năng, thiếu nhi, kinh tế...) để Delippy gợi ý đúng gu hơn nhé?"
+  ]
+}
