@@ -13,7 +13,7 @@ class OpenAICompatibleProvider(LLMProvider):
     emulated everywhere via response_format=json_object since DeepSeek does
     not support OpenAI's stricter json_schema mode."""
 
-    def __init__(self, api_key: Optional[str], model_cheap: str, model_complex: str, base_url: Optional[str] = None) -> None:
+    def __init__(self, api_key: Optional[str], model_cheap: str, model_complex: str, base_url: Optional[str] = None, disable_reasoning: bool = False) -> None:
         self.client = None
         if api_key:
             from openai import OpenAI
@@ -23,6 +23,20 @@ class OpenAICompatibleProvider(LLMProvider):
             # Gemini provider pattern rather than introducing a second style.
             self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.models = {"cheap": model_cheap, "complex": model_complex}
+        # Some OpenAI-wire-compatible models (DeepSeek's reasoning line, incl.
+        # deepseek-v4-flash-free served through OpenCode Zen) default to
+        # emitting a hidden reasoning_content trace alongside the real answer
+        # - billed as completion_tokens same as visible output. Live-measured:
+        # a <100-word formatter reply cost 8986 completion tokens with
+        # reasoning on. extra_body={"reasoning": {"enabled": False}} is the
+        # documented OpenAI-compatible way to turn it off (DeepSeek API docs -
+        # thinking_mode). Opt-in per-provider (not always-on) since a plain,
+        # non-reasoning OpenAI-compatible backend has no use for this field,
+        # and a strict server could reject an unrecognized one.
+        self.disable_reasoning = disable_reasoning
+
+    def _extra_body(self) -> dict:
+        return {"reasoning": {"enabled": False}} if self.disable_reasoning else {}
 
     def is_available(self) -> bool:
         return self.client is not None
@@ -40,7 +54,7 @@ class OpenAICompatibleProvider(LLMProvider):
         messages.append({"role": "user", "content": prompt})
 
         model = self.models.get(model_tier, self.models["cheap"])
-        response = self.client.chat.completions.create(model=model, messages=messages)
+        response = self.client.chat.completions.create(model=model, messages=messages, extra_body=self._extra_body())
         prompt_tokens, completion_tokens = self._usage(response)
         return LLMResult(value=response.choices[0].message.content or "", prompt_tokens=prompt_tokens, completion_tokens=completion_tokens)
 
@@ -64,6 +78,7 @@ class OpenAICompatibleProvider(LLMProvider):
             model=model,
             messages=messages,
             response_format={"type": "json_object"},
+            extra_body=self._extra_body(),
         )
         prompt_tokens, completion_tokens = self._usage(response)
         value = response_schema.model_validate_json(response.choices[0].message.content)

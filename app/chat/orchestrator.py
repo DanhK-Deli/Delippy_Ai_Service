@@ -11,6 +11,7 @@ from app.models.shopping_context import ShoppingContext
 from app.models.evidence import Evidence
 from app.client.llm_client import llm_client_wrapper
 from app.database.conversation_repository import conversation_repo
+from app.database.parse_cache_repository import parse_cache_repo
 from app.knowledge.ontology import ontology
 import json
 import random
@@ -287,6 +288,7 @@ class Orchestrator:
                 product_options=product_options,
                 subcategory_options=subcategory_options,
                 subcategory_category_slug=subcategory_category_slug,
+                query_vector=query_vector,
             )
         # Snapshot memory's search constraints BEFORE resolve merges this turn
         # into them - needed to tell a genuinely-new constraint from one merely
@@ -333,6 +335,20 @@ class Orchestrator:
                 # list when it never did - both $0 and more actionable than
                 # "here's something else you looked at before".
                 evidence = await search_engine.search_or_expand(context)
+
+                # Semantic parse cache WRITE: this is the one place we KNOW a
+                # fresh search actually succeeded with real, live-verified
+                # products. Cache the AI parse for global reuse so a future
+                # similar query skips the Gemini parse. Gated on _parse_source
+                # == "ai" (never a cache hit / deterministic / reference parse)
+                # and on evidence.products - a wrong parse finds nothing, so it
+                # can never be cached (structural anti-poisoning). Reuses THIS
+                # turn's query_vector; no extra embedding. TTL'd, not permanent.
+                if evidence.products and getattr(context, "_parse_source", None) == "ai" and context._ai_parse:
+                    await parse_cache_repo.store(message, query_vector, context._ai_parse)
+                    print(f"\n[Orchestrator] Semantic parse cached for global reuse "
+                          f"(concept q='{context._ai_parse.get('query_q')}', category={context._ai_parse.get('category')}, "
+                          f"{len(evidence.products)} product(s) confirmed).")
 
             if not evidence.products and not evidence.related_products and context.category:
                 # Genuine miss with a real category resolved - offer that

@@ -39,6 +39,12 @@ def _build_generic_openai_compatible(name: str) -> LLMProvider:
     model_cheap = os.getenv(f"{prefix}_MODEL_CHEAP", os.getenv(f"{prefix}_MODEL", name))
     model_complex = os.getenv(f"{prefix}_MODEL_COMPLEX", model_cheap)
     embedding_model = os.getenv(f"{prefix}_EMBEDDING_MODEL")
+    # Opt-in: a reasoning-capable model (e.g. DeepSeek's line) bills its
+    # hidden reasoning_content trace as completion_tokens same as the real
+    # answer - see openai_compatible.py's disable_reasoning docstring for the
+    # live-measured cost. Off by default so a plain, non-reasoning backend
+    # never sends a field it has no use for.
+    disable_reasoning = os.getenv(f"{prefix}_DISABLE_REASONING", "false").strip().lower() == "true"
     return GenericOpenAICompatibleProvider(
         name=name,
         api_key=api_key,
@@ -46,6 +52,7 @@ def _build_generic_openai_compatible(name: str) -> LLMProvider:
         model_cheap=model_cheap,
         model_complex=model_complex,
         embedding_model=embedding_model,
+        disable_reasoning=disable_reasoning,
     )
 
 

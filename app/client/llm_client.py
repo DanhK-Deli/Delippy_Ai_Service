@@ -96,6 +96,24 @@ class LLMClientWrapper:
             print(f"\n[{llm_provider.name} - Error in Formatter] {e}.\n")
             return "Xin lỗi bạn, kết nối AI hiện đang gặp gián đoạn. Vui lòng thử lại sau."
 
+    async def format_zero_result_response(self, query: str, category: Optional[str]) -> str:
+        template = load_prompt_template("zero_result_prompt.txt")
+        prompt = template.format(query=query, category=category or "chưa xác định")
+        fallback = "Delippy hiện chưa tìm thấy sản phẩm nào khớp với yêu cầu của bạn. Bạn thử tìm với từ khoá khác xem sao nhé!"
+        if not llm_provider.is_available():
+            print(f"\n[{llm_provider.name}] Provider not available. Using deterministic zero-result fallback.\n")
+            return fallback
+        try:
+            result = await llm_provider.generate_text(
+                prompt=prompt,
+                model_tier="cheap"
+            )
+            log_usage("Zero Result Formatter", result.prompt_tokens, result.completion_tokens)
+            return result.value
+        except Exception as e:
+            print(f"\n[{llm_provider.name} - Error in Zero Result Formatter] {e}.\n")
+            return fallback
+
     def get_embedding(
         self,
         text: str,
@@ -104,6 +122,28 @@ class LLMClientWrapper:
     ) -> List[float]:
         if not text:
             return []
-        return llm_provider.embed(text, task_type=task_type, output_dimensionality=output_dimensionality)
+
+        # 1. Try active provider's embedding first
+        try:
+            vector = llm_provider.embed(text, task_type=task_type, output_dimensionality=output_dimensionality)
+            if vector:
+                return vector
+        except Exception:
+            pass
+
+        # 2. Fallback to Gemini if active provider failed or doesn't support embedding
+        if llm_provider.name != "gemini":
+            from app.core.llm.factory import get_llm_provider
+            try:
+                gemini = get_llm_provider("gemini")
+                if gemini.is_available():
+                    vector = gemini.embed(text, task_type=task_type, output_dimensionality=output_dimensionality)
+                    if vector:
+                        print(f"\n[LLMClientWrapper] Active provider '{llm_provider.name}' doesn't support embedding. Fell back to Gemini successfully.\n")
+                        return vector
+            except Exception as e:
+                print(f"\n[LLMClientWrapper] Failed to fall back to Gemini for embedding: {e}\n")
+
+        return []
 
 llm_client_wrapper = LLMClientWrapper()

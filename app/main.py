@@ -90,6 +90,15 @@ async def startup_event():
         import logging
         logging.getLogger(__name__).warning(f"[Startup] MongoDB not available: {e}")
 
+    # Idempotent TTL index for the semantic parse cache (auto-expires stale
+    # entries so the cache self-heals and its lookup scan stays bounded).
+    try:
+        from app.database.parse_cache_repository import parse_cache_repo
+        await parse_cache_repo.ensure_ttl_index()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"[Startup] parse_cache TTL index not created: {e}")
+
 
 @app.on_event("shutdown")
 async def shutdown_event():

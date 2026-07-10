@@ -1,5 +1,6 @@
 import json
 import random
+import re
 from typing import Dict, Any, List
 from app.models.evidence import Evidence
 from app.models.shopping_context import ShoppingContext
@@ -8,31 +9,58 @@ from app.client.llm_client import llm_client_wrapper
 from app.knowledge.ontology import ontology
 from app.understanding.intent_classifier import is_too_vague_for_results, is_prompt_probe_query, needs_consultation
 
+def _minimize_product(p: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(p, dict):
+        return p
+    min_p = {}
+    for field in ["name", "price", "rating", "sold_count", "slug"]:
+        if p.get(field) is not None:
+            min_p[field] = p[field]
+    details = p.get("details")
+    if details:
+        # Simple HTML tag stripping
+        clean_desc = re.sub(r"<[^>]*>", "", str(details))
+        clean_desc = " ".join(clean_desc.split())
+        min_p["details"] = clean_desc[:120] + "..." if len(clean_desc) > 120 else clean_desc
+    return min_p
+
 class ResponseFormatter:
     async def format(self, query: str, history_lazy: Lazy, evidence: Evidence, context: ShoppingContext) -> str:
         intent = context.intent
 
         # 1. Greeting
         if intent == "GREETING":
+            responses = ontology.chitchat_responses.get("greeting", [])
             print("\n[Formatter] Skipped LLM Formatting: GREETING matches deterministic response (Tokens: 0, Cost: $0.00)\n")
-            if ontology.greeting_responses:
-                return random.choice(ontology.greeting_responses)
+            if responses:
+                return random.choice(responses)
             return "Xin chào! Mình là trợ lý mua sắm thông minh của Delippy. Bạn cần mình giúp gì hôm nay? (Tìm sản phẩm, so sánh sản phẩm, tư vấn mua hàng...)"
 
-        # 1.5 Social niceties (thanks, well-wishes, farewells) - the user being
-        # polite, not asking an off-topic question. Reciprocate warmly (thank
-        # you / wish back) before the soft product redirect, distinct from
-        # CHITCHAT's decline-and-redirect tone.
+        # 1.5 Social niceties - the user being polite, not asking an off-topic
+        # question. sub_intent (parser_prompt.txt) splits this further:
+        # "compliment" (thanks, well-wishes, farewells - reciprocate warmly)
+        # vs "no_intent" (a bare filler ack like "ok"/"vâng" with no real ask -
+        # a thanks-reply here would read as a non-sequitur). Defaults to
+        # "compliment" when sub_intent is missing/unrecognized (old cached
+        # parses, or the model returning something unexpected) - matches
+        # exactly what this branch always did before sub_intent existed.
         if intent == "SOCIAL":
-            print("\n[Formatter] Skipped LLM Formatting: SOCIAL matches deterministic response (Tokens: 0, Cost: $0.00)\n")
-            if ontology.social_responses:
-                return random.choice(ontology.social_responses)
+            bucket = context.sub_intent if context.sub_intent in ("compliment", "no_intent") else "compliment"
+            responses = ontology.chitchat_responses.get(bucket, [])
+            print(f"\n[Formatter] Skipped LLM Formatting: SOCIAL/{bucket} matches deterministic response (Tokens: 0, Cost: $0.00)\n")
+            if responses:
+                return random.choice(responses)
             return "Cảm ơn bạn nhiều nha! Khi nào cần tìm sản phẩm gì thì cứ nhắn Delippy nhé!"
 
-        # 1.6 Chitchat / out-of-scope (jokes, small talk, anything not shopping-related).
-        # Distinct from GREETING - reusing the shop-welcome text for "kể chuyện cười"
-        # read as a robotic non-sequitur. Still deterministic ($0) - a small pool of
-        # varied warm decline-and-redirect lines instead of one canned paragraph.
+        # 1.6 Chitchat / out-of-scope (jokes, small talk, anything not
+        # shopping-related) - distinct from GREETING, reusing the shop-welcome
+        # text for "kể chuyện cười" read as a robotic non-sequitur. sub_intent
+        # splits this into "toxicity" (complaints/insults - de-escalate,
+        # don't get defensive), "help_capabilities" ("bạn làm được gì" - state
+        # real capabilities), or "out_of_scope" (everything else off-topic -
+        # the default whenever sub_intent is missing/unrecognized, matching
+        # this branch's original single-pool behavior). Still deterministic
+        # ($0) - each bucket is its own small pool of varied warm lines.
         # A user probing for the system prompt/internal config is ALSO
         # CHITCHAT upstream (no separate intent for it), but needs a very
         # different reply than an innocent joke gets - picking from one mixed
@@ -44,9 +72,11 @@ class ResponseFormatter:
             if is_prompt_probe_query(query) and ontology.prompt_probe_responses:
                 print("\n[Formatter] Skipped LLM Formatting: CHITCHAT prompt-probe matches deterministic response (Tokens: 0, Cost: $0.00)\n")
                 return random.choice(ontology.prompt_probe_responses)
-            print("\n[Formatter] Skipped LLM Formatting: CHITCHAT matches deterministic response (Tokens: 0, Cost: $0.00)\n")
-            if ontology.chitchat_responses:
-                return random.choice(ontology.chitchat_responses)
+            bucket = context.sub_intent if context.sub_intent in ("out_of_scope", "toxicity", "help_capabilities") else "out_of_scope"
+            responses = ontology.chitchat_responses.get(bucket, [])
+            print(f"\n[Formatter] Skipped LLM Formatting: CHITCHAT/{bucket} matches deterministic response (Tokens: 0, Cost: $0.00)\n")
+            if responses:
+                return random.choice(responses)
             return "Mình là trợ lý mua sắm của Delippy nên chưa hỗ trợ được việc này. Bạn cần tìm sản phẩm gì thì cứ nói mình nghe nhé!"
 
         # 2. Detail / Product Info (Deterministic format if we just want a simple description)
@@ -154,45 +184,52 @@ class ResponseFormatter:
         # the LLM formatter below, which already knows how to present
         # not_found + related_products warmly (formatter_prompt.txt rule 5).
         if intent == "SEARCH" and not evidence.products and not evidence.related_products:
-            # 3.5a A real category matched but even the expanded query
-            # variants (search_engine.search_or_expand) came up empty - offer
-            # that category's own subcategory menu instead of a dead-end
-            # "try other keywords" message. Still $0: menu is computed once
-            # by orchestrator (ontology.subcategories_for) and attached to
-            # evidence - reading it from there (not recomputing here) keeps
-            # the text on screen and what's persisted to conversation.memory
-            # for a later "số N" guaranteed identical.
+            # Warm, personalized zero-result reply (zero_result_prompt.txt) -
+            # replaces 3 formerly-canned texts that read as robotic ("không
+            # có ý nghĩa gì hết" per live user feedback). The LLM only writes
+            # the empathetic paragraph (acknowledge + excuse + pivot) - it
+            # never sees or invents the actual subcategory/category names
+            # list, which is still built deterministically below exactly as
+            # before, so nothing here can hallucinate a menu option that
+            # doesn't exist.
+            category_display = None
+            if context.category:
+                info = evidence.subcategory_menu or ontology.subcategories_for(context.category)
+                if info:
+                    category_display = info.get("name")
+
+            search_term = context.query_q or context.purpose or context.category or "sản phẩm này"
+            intro = await llm_client_wrapper.format_zero_result_response(search_term, category_display)
+
+            # A real category matched but even the expanded query variants
+            # (search_engine.search_or_expand) came up empty - offer that
+            # category's own subcategory menu instead of a dead-end "try
+            # other keywords" message. menu is computed once by orchestrator
+            # (ontology.subcategories_for) and attached to evidence - reading
+            # it from there (not recomputing here) keeps what's shown and
+            # what's persisted to conversation.memory for a later "số N"
+            # guaranteed identical.
             menu = evidence.subcategory_menu
             if menu and menu["subcategories"]:
                 listed = "\n".join(f"{i}. {s['name'].capitalize()}" for i, s in enumerate(menu["subcategories"][:10], start=1))
-                print("\n[Formatter] Skipped LLM Formatting: SEARCH empty matches deterministic subcategory menu (Tokens: 0, Cost: $0.00)\n")
-                return (
-                    f"Delippy chưa tìm thấy sản phẩm khớp với yêu cầu của bạn trong nhóm **{menu['name']}**. "
-                    f"Bạn có thể chọn cụ thể hơn một trong các mục sau:\n\n{listed}\n\n"
-                    "Bạn muốn tìm ở mục nào trong số này không?"
-                )
+                return f"{intro}\n\n{listed}\n\nBạn muốn tìm ở mục nào trong số này không?"
+
             if not context.category:
-                # 3.5b category never resolved at all - this is very likely
+                # category never resolved at all - this is very likely
                 # outside Delippy's catalog entirely (jobs, food delivery,
                 # weather...), not just a bad keyword within a real category.
-                # State current coverage instead of paying for an LLM call to
-                # guess/decline. See orchestrator.py: the cached-related-
-                # products fallback is deliberately skipped in this exact
-                # case so it lands here instead of the LLM branch below.
+                # See orchestrator.py: the cached-related-products fallback is
+                # deliberately skipped in this exact case so it lands here
+                # instead of the LLM branch below.
                 names = ontology.top_level_category_names()
                 if names:
                     listed = ", ".join(n.capitalize() for n in names)
-                    print("\n[Formatter] Skipped LLM Formatting: SEARCH empty + unresolved category matches deterministic scope response (Tokens: 0, Cost: $0.00)\n")
                     return (
-                        "Delippy hiện chưa hỗ trợ tìm kiếm với nội dung này trên nền tảng. "
-                        f"Hiện tại Delippy có các nhóm ngành: {listed}.\n\n"
+                        f"{intro}\n\nHiện tại Delippy có các nhóm ngành: {listed}.\n\n"
                         "Bạn cần tìm sản phẩm/dịch vụ nào trong số này không?"
                     )
 
-            print("\n[Formatter] Skipped LLM Formatting: SEARCH matches deterministic empty result (Tokens: 0, Cost: $0.00)\n")
-            if ontology.search_empty_responses:
-                return random.choice(ontology.search_empty_responses)
-            return "Delippy hiện chưa tìm thấy sản phẩm nào khớp với yêu cầu của bạn. Bạn thử tìm với từ khoá khác xem sao nhé!"
+            return intro
 
         # 4. Fallback to the configured LLM provider for Consultation, Comparison and FAQ Answers
         # evidence.products can hold up to 20 (kept for "xem thêm" pagination) -
@@ -200,10 +237,27 @@ class ResponseFormatter:
         # inflate LLM token cost.
         evidence_for_llm = evidence.copy(update={"products": evidence.products[:5]}) if evidence.products else evidence
 
+        # Minimize product data payloads to save input tokens
+        minimized_products = [_minimize_product(p) for p in (evidence_for_llm.products or [])]
+        minimized_related = [_minimize_product(p) for p in (evidence_for_llm.related_products or [])]
+        minimized_details = _minimize_product(evidence_for_llm.details) if evidence_for_llm.details else None
+        minimized_comparisons = [_minimize_product(p) for p in (evidence_for_llm.comparison_results or [])]
+
+        # Re-build evidence dict with minimized values
+        evidence_dict = evidence_for_llm.dict(exclude_none=True)
+        if "products" in evidence_dict and evidence_dict["products"]:
+            evidence_dict["products"] = minimized_products
+        if "related_products" in evidence_dict and evidence_dict["related_products"]:
+            evidence_dict["related_products"] = minimized_related
+        if "details" in evidence_dict and evidence_dict["details"]:
+            evidence_dict["details"] = minimized_details
+        if "comparison_results" in evidence_dict and evidence_dict["comparison_results"]:
+            evidence_dict["comparison_results"] = minimized_comparisons
+
         # Strip empty/None fields and use compact separators to keep the prompt
         # small even when evidence carries a lot of data (e.g. 3-way comparisons).
         evidence_payload = {
-            k: v for k, v in evidence_for_llm.dict(exclude_none=True).items()
+            k: v for k, v in evidence_dict.items()
             if v != [] and v != {} and v != ""
         }
 

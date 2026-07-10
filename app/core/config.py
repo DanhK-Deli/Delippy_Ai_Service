@@ -36,12 +36,26 @@ class Settings:
     DELIPPY_API_BASE_URL: str = os.getenv("DELIPPY_API_BASE_URL", "https://dev.delippy.com/api/v1")
     DELIPPY_API_TIMEOUT: float = float(os.getenv("DELIPPY_API_TIMEOUT", "8"))
 
-    # "legacy" (default - category+keyword via /products/search, unchanged
-    # behavior) | "vector" (Atlas $vectorSearch on product_embeddings,
-    # requires sync_products() + the index to have been run first) |
-    # "shadow" (serves legacy results but also runs the vector path and
-    # logs both for comparison - use this to validate before flipping to
-    # "vector" in production). See app/retrieval/search_engine.py.
-    RETRIEVAL_MODE: str = os.getenv("RETRIEVAL_MODE", "legacy").strip().lower()
+    # "legacy" (category+keyword via /products/search, unchanged behavior) |
+    # "vector" (Atlas $vectorSearch on product_embeddings, requires
+    # sync_products() + the index to have been run first) | "shadow" (serves
+    # legacy results but also runs the vector path and logs both for
+    # comparison) | "hybrid" (default - routes each query to vector-first or
+    # legacy-first based on intent, cross-falls-back to the other path on a
+    # zero-result miss). See app/retrieval/search_engine.py.
+    #
+    # Was briefly reverted to "legacy" (2026-07-10) after diagnosing that
+    # gemini-embedding-2 embeds a brand name or a number+unit spec ("Toshiba",
+    # "10,5Kg") appended to a short product-type phrase by collapsing
+    # similarity ~25-30 points each (task_type has no effect - separately
+    # confirmed via raw REST, not the actual cause) - every real product name
+    # has both, so candidate scores clustered too tightly to discriminate.
+    # Fixed by stripping detected brand + spec/unit tokens before embedding
+    # (see sync_products.py's _strip_brand/_strip_specs) and no longer
+    # folding context.brand into the vector query text (search_engine.py's
+    # _search_vector) - re-verified after a full catalog re-sync: the real
+    # match now ranks #1 with a real margin instead of being outscored by
+    # unrelated noise. Restored to "hybrid" as default.
+    RETRIEVAL_MODE: str = os.getenv("RETRIEVAL_MODE", "hybrid").strip().lower()
 
 settings = Settings()

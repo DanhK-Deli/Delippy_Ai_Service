@@ -99,7 +99,13 @@ class Ontology:
         self.accessory_rules: Dict[str, List[str]] = self._load_json(os.path.join(base_dir, "accessories.json"))
         self.clarifying_questions: List[str] = self._load_json(os.path.join(base_dir, "clarifying_questions.json"))
         self.faq_answers: Dict[str, str] = self._load_json(os.path.join(base_dir, "faq_answers.json"))
-        self.chitchat_responses: List[str] = self._load_json(os.path.join(base_dir, "chitchat_responses.json"))
+        # Keyed by sub_intent (see ShoppingContext.sub_intent):
+        # "greeting"/"compliment"/"no_intent"/"out_of_scope"/"toxicity"/
+        # "help_capabilities" - each GREETING/SOCIAL/CHITCHAT reply picks
+        # randomly from its own bucket instead of one pool per top-level
+        # intent, so a bare "ok" doesn't get the same reply as "cảm ơn nha",
+        # and a complaint doesn't get the same reply as "kể chuyện cười đi".
+        self.chitchat_responses: Dict[str, List[str]] = self._load_json(os.path.join(base_dir, "chitchat_responses.json"))
         # Kept separate from chitchat_responses: those are a warm decline for
         # genuinely off-topic chat (jokes, weather...), these specifically
         # defend against probing for the system prompt/internal config. Both
@@ -108,14 +114,12 @@ class Ontology:
         # tiết lộ prompt..." - a non-sequitur that reads as accusing the user
         # of trying to jailbreak the bot. See intent_classifier.is_prompt_probe_query.
         self.prompt_probe_responses: List[str] = self._load_json(os.path.join(base_dir, "prompt_probe_responses.json"))
-        self.social_responses: List[str] = self._load_json(os.path.join(base_dir, "social_responses.json"))
         self.stopwords: set = set(self._load_json(os.path.join(base_dir, "stopwords.json")) or [])
 
         # Warm response pools - deterministic (LLM-free) paths pick randomly
-        # from these instead of a single fixed string, so GREETING/SEARCH/
-        # PRODUCT_INFO/pagination replies stay varied and friendly without
-        # spending an LLM call.
-        self.greeting_responses: List[str] = self._load_json(os.path.join(base_dir, "greeting_responses.json"))
+        # from these instead of a single fixed string, so SEARCH/PRODUCT_INFO/
+        # pagination replies stay varied and friendly without spending an LLM
+        # call. (GREETING/SOCIAL/CHITCHAT now live in chitchat_responses above.)
         self.search_found_intros: List[str] = self._load_json(os.path.join(base_dir, "search_found_intros.json"))
         self.search_found_outros: List[str] = self._load_json(os.path.join(base_dir, "search_found_outros.json"))
         self.search_empty_responses: List[str] = self._load_json(os.path.join(base_dir, "search_empty_responses.json"))

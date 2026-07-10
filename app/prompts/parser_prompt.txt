@@ -3,6 +3,9 @@ Analyze the user request and conversation history (if any) and output a JSON obj
 
 Your response must be a single JSON object with the following fields:
 - "intent": One of "SEARCH" (search/recommend products), "COMPARE" (compare two or more products), "FAQ" (frequently asked questions), "PRODUCT_INFO" (ask for details of a product), "GREETING" (an actual greeting like "xin chào"/"hi"), "SOCIAL" (polite social exchanges directed at the assistant - thanks/"cảm ơn", well-wishes/"chúc bạn buổi tối vui vẻ", compliments, farewells/"tạm biệt nhé" - the user is just being nice, not asking a question), "CHITCHAT" (genuinely off-topic requests unrelated to shopping - jokes, weather, personal questions, general knowledge, requests the assistant clearly cannot fulfill as a shopping assistant).
+- "sub_intent": Only set when "intent" is "SOCIAL" or "CHITCHAT" (for "GREETING" and every other intent, always set to null - GREETING's sub_intent is resolved elsewhere, not by you).
+  - If "intent" is "SOCIAL": "compliment" (thanks, well-wishes, praise, farewells) or "no_intent" (a bare filler acknowledgment with no real ask - "ok", "vâng", "được rồi", "ừm").
+  - If "intent" is "CHITCHAT": "toxicity" (the user is complaining about or insulting the assistant/service - "tệ quá", "dở ẹc", "ngu vậy") or "help_capabilities" (the user is asking what the assistant can do - "bạn làm được gì", "bạn giúp được gì cho tôi") or "out_of_scope" (anything else off-topic - jokes, weather, general knowledge, requests clearly outside shopping).
 - "category": Detected product category (e.g., "laptop theo nhãn hiệu", "điện thoại di động", "thời trang nam", "ô tô - xe máy - xe đạp") or null.
 - "brand": Detected brand (e.g., "asus", "apple", "vinamilk") or null.
 - "price_min": Minimum price in VND or null.
@@ -11,14 +14,23 @@ Your response must be a single JSON object with the following fields:
 - "compare_targets": List of product names or models to compare (e.g., ["iPhone 15", "Galaxy S24"]) if intent is COMPARE, otherwise empty list [].
 - "product": Target product name/slug if query asks for details of a specific product (PRODUCT_INFO), or null.
 - "query_q": Extracted search string (normalized keyword query) or null.
-- "expanded_queries": 2-4 alternative search keyword phrases for "query_q" - synonyms, other common names, or closely related product nouns - to widen the product search net in case the exact phrase in "query_q" returns no results. Lowercase, no duplicates, never include "query_q" itself. Empty list [] if "query_q" is null.
+- "expanded_queries": 2-4 alternative SHORT, ATOMIC search keyword terms for "query_q" (synonyms, other common names, or closely related product nouns) to widen the product search net in case "query_q" returns no results. Each term should be 1-2 words like "query_q" itself, a bare product noun - NOT a long descriptive phrase. Lowercase, no duplicates, never include "query_q" itself. Empty list [] if "query_q" is null.
 
 Strict Rules for "query_q" and Semantic Modifiers:
+0. A search-trigger verb ("tìm", "mua", "kiếm", "gợi ý", "tư vấn") in the query does NOT by itself make the intent SEARCH. Before assigning SEARCH, check: does what follows the verb name a CONCRETE PRODUCT/CATEGORY that could realistically be sold as a retail item on an e-commerce platform?
+   - If it names information/knowledge to learn ("tìm hiểu về X", "X là gì"), a market/financial figure ("giá vàng", "tỷ giá"), a service/task outside retail (đặt vé máy bay, gọi taxi, vay tiền, mua bảo hiểm nhân thọ), or a non-product recommendation (gợi ý phim, gợi ý bài hát, gợi ý địa điểm du lịch) -> classify as CHITCHAT/out_of_scope instead, even though a search-trigger word is present.
+   - Only assign SEARCH when the object after the verb is (or can be rephrased as) something with a plausible product listing: a physical good, an apparel/electronics/grocery item, a service actually sold on Delippy, etc.
+   - Example: "tìm hiểu về vitamin C có tốt không" -> CHITCHAT/out_of_scope (asking to learn about a topic, not to buy a product), whereas "tìm vitamin C dạng viên" -> SEARCH, query_q "vitamin C".
+   - Example: "giá vàng hôm nay bao nhiêu" -> CHITCHAT/out_of_scope (market price question, not a retail product on the platform).
+
 1. Translate activity/purpose modifiers into database-friendly concrete nouns:
    - "quần đi leo núi" -> set query_q to "quần dài" or "quần túi hộp" and purpose to "leo núi".
    - "áo đẹp" -> set query_q to "áo thun" or "áo khoác" (avoid abstract "áo đẹp").
 2. "query_q" must be a concrete, searchable keyword representing the product noun (e.g. "nón", "xe máy", "quần áo", "tủ lạnh").
 3. Do not include query attributes like "rẻ nhất", "tốt nhất" in query_q. The LLM response formatter will analyze and rank these dynamically.
+4. Keep "query_q" SHORT and ATOMIC (ideally 1-2 words) - a bare product noun, optionally one distinguishing word - NOT a descriptive phrase. The backend matches this text literally against real product titles (/products/search?q=...), so a long phrase like "kem dưỡng ẩm sau nắng" or "sản phẩm trị cháy nắng" rarely appears verbatim in a title and finds nothing, whereas short terms like "kem dưỡng ẩm" or "gel" match far more real products.
+5. Strip pure filler words that describe no product and never appear in titles: "sản phẩm", "loại", "đồ", "hàng", "mặt hàng", "các loại". Also drop narrow trailing qualifiers unlikely to appear verbatim in a title (e.g. "sau nắng", "chuyên dụng").
+6. Do NOT repeat a word already implied by the resolved "category" when it adds no matching power - BUT keep any word the term needs to stay unambiguous when read alone. E.g. with category skincare, prefer "kem da" over the longer "kem dưỡng da mặt"; keep "da" because it distinguishes from "kem" (which alone also means ice cream), but never strip down to a bare ambiguous "kem" - category resolution is not always correct, so query_q must still be safe on its own if category ends up null or wrong.
 
 Resolving References to Previously Shown Products:
 Below is the list of products already shown to the user in this session (may be empty):
@@ -41,14 +53,26 @@ Output: {{"intent": "SEARCH", "category": "thời trang nam", "brand": null, "pr
 Query: "tìm balo đi học"
 Output: {{"intent": "SEARCH", "category": "thời trang & phụ kiện", "brand": null, "price_min": null, "price_max": null, "purpose": "học tập", "compare_targets": [], "product": null, "query_q": "balo", "expanded_queries": ["cặp học sinh", "túi xách đi học", "ba lô"]}}
 
+Query: "da tôi bị cháy nắng rát quá, mua gì để phục hồi bây giờ"
+Output: {{"intent": "SEARCH", "category": "chăm sóc da", "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": "kem da", "expanded_queries": ["gel", "trị cháy nắng", "kem dưỡng ẩm"]}}
+
 Query: "Bạn kể chuyện cười cho tôi được không"
-Output: {{"intent": "CHITCHAT", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": null, "expanded_queries": []}}
+Output: {{"intent": "CHITCHAT", "sub_intent": "out_of_scope", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": null, "expanded_queries": []}}
 
 Query: "chúc bạn buổi tối vui vẻ"
-Output: {{"intent": "SOCIAL", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": null, "expanded_queries": []}}
+Output: {{"intent": "SOCIAL", "sub_intent": "compliment", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": null, "expanded_queries": []}}
 
 Query: "cảm ơn bạn nhiều nha"
-Output: {{"intent": "SOCIAL", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": null, "expanded_queries": []}}
+Output: {{"intent": "SOCIAL", "sub_intent": "compliment", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": null, "expanded_queries": []}}
+
+Query: "ok"
+Output: {{"intent": "SOCIAL", "sub_intent": "no_intent", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": null, "expanded_queries": []}}
+
+Query: "dở vậy, tìm hoài không ra"
+Output: {{"intent": "CHITCHAT", "sub_intent": "toxicity", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": null, "expanded_queries": []}}
+
+Query: "bạn làm được những gì"
+Output: {{"intent": "CHITCHAT", "sub_intent": "help_capabilities", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": null, "expanded_queries": []}}
 
 Query: "cái ở hà nội đó cho tôi xem chi tiết nó"
 (Products already shown: [{{"slug":"dat-nen-quan-9-ha-noi-abc123","name":"Đất nền Quận 9 - Hà Nội"}},{{"slug":"sim-so-dep-giam-doc-xyz","name":"Sim số đẹp giới bất động sản"}}])
@@ -57,6 +81,18 @@ Output: {{"intent": "PRODUCT_INFO", "category": null, "brand": null, "price_min"
 Query: "so sánh 2 loại đầu tiên"
 (Products already shown: [{{"slug":"cac-loai-gao-luong-thuc-thuc-pham","name":"CÁC LOẠI GẠO , LƯƠNG THƯC, THỰC PHẨM"}},{{"slug":"10-hop-nhua-dung-thuc-pham-500ml","name":"10 HỘP NHỰA ĐỰNG THỰC PHẨM 500ml"}},{{"slug":"hang-thuc-pham-banh-xep-tom-thit","name":"hàng thực phẩm ( bánh xếp tôm thịt)"}}])
 Output: {{"intent": "COMPARE", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": ["CÁC LOẠI GẠO , LƯƠNG THƯC, THỰC PHẨM", "10 HỘP NHỰA ĐỰNG THỰC PHẨM 500ml"], "product": null, "query_q": null, "expanded_queries": []}}
+
+Query: "tìm dịch vụ sửa ống nước tại nhà"
+Output: {{"intent": "CHITCHAT", "sub_intent": "out_of_scope", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": null, "expanded_queries": []}}
+
+Query: "giao trà sữa cho tôi"
+Output: {{"intent": "CHITCHAT", "sub_intent": "out_of_scope", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": null, "expanded_queries": []}}
+
+Query: "tìm hiểu về collagen có tác dụng gì không"
+Output: {{"intent": "CHITCHAT", "sub_intent": "out_of_scope", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": null, "expanded_queries": []}}
+
+Query: "gợi ý giúp tôi vài bộ phim hay để xem cuối tuần"
+Output: {{"intent": "CHITCHAT", "sub_intent": "out_of_scope", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": null, "expanded_queries": []}}
 
 Conversation History:
 {history}

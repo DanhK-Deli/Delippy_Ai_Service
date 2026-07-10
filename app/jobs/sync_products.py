@@ -8,6 +8,7 @@ from app.client.delippy_client import delippy_client
 from app.client.llm_client import llm_client_wrapper
 from app.core.config import settings
 from app.database.product_vector_repository import product_vector_repo
+from app.knowledge.ontology import ontology
 
 # Concurrency cap for embed calls during sync - llm_provider.embed() is a
 # blocking sync call (see gemini_provider.py), so each one is dispatched via
@@ -18,8 +19,46 @@ from app.database.product_vector_repository import product_vector_repo
 # throughput.
 _EMBED_CONCURRENCY = 8
 
+def _strip_brand(name: str) -> str:
+    """A brand name (company, not model) appended to a short product-type
+    phrase collapses this embedding model's similarity dramatically - live-
+    measured: "máy giặt" vs "Máy Giặt" = 0.936, vs "Máy Giặt Toshiba" = 0.663
+    (adding just the brand costs 27 points), vs the real product's full name
+    "Máy Giặt Toshiba 10,5Kg" = 0.584 - LOWER than an unrelated kettle's bare
+    name (0.653, no brand to dilute it). Every real product name in this
+    catalog includes its brand, so without this the whole candidate pool for
+    a category ends up clustered in an undiscriminating ~0.6-0.85 band
+    regardless of true relevance. Reuses ontology.find_brand() (already used
+    elsewhere for brand detection, e.g. entity_extractor.py) rather than
+    inventing a second brand list."""
+    brand = ontology.find_brand(name)
+    if not brand:
+        return name
+    stripped = re.sub(rf"\b{re.escape(brand)}\b", "", name, flags=re.IGNORECASE)
+    return re.sub(r"\s+", " ", stripped).strip()
+
+# A number+unit spec (capacity, size, storage...) dilutes this embedding
+# model's similarity by roughly the same magnitude as a brand name does -
+# live-measured: "máy giặt" vs "Máy Giặt" = 0.936, vs "Máy Giặt 10,5Kg" =
+# 0.655 (a ~28-point drop from the spec alone, comparable to _strip_brand's
+# 27-point brand hit). Every real product title has SOME spec suffix
+# (capacity/size/storage), so left unstripped it re-introduces the same
+# undiscriminating clustering _strip_brand alone doesn't fully fix. Only
+# matches number+unit-word pairs (kg/l/ml/cm/inch/GB/...), never a bare
+# number - a model number like "iPhone 15"/"Galaxy S24" has no unit word
+# following it, so it's left untouched (a real differentiator, not noise).
+_SPEC_RE = re.compile(
+    r"\b\d+([.,]\d+)?\s*(kg|gam|g|lít|lit|l|ml|cm|mm|m2|m3|inch|in|gb|tb|mb|mah|kw|hz|volt|v)\b",
+    flags=re.IGNORECASE,
+)
+
+def _strip_specs(name: str) -> str:
+    stripped = _SPEC_RE.sub("", name)
+    return re.sub(r"\s+", " ", stripped).strip()
+
 async def _embed_product(name: str, category_name: str, subcategory_name: Optional[str]) -> List[float]:
-    text = f"{name} - {category_name}" + (f" - {subcategory_name}" if subcategory_name else "")
+    clean_name = _strip_specs(_strip_brand(name))
+    text = f"{clean_name} - {category_name}" + (f" - {subcategory_name}" if subcategory_name else "")
     return await asyncio.to_thread(
         llm_client_wrapper.get_embedding,
         text,

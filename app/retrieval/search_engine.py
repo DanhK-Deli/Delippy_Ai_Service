@@ -1,4 +1,5 @@
 import asyncio
+import re
 from typing import List, Dict, Any, Optional
 from app.models.shopping_context import ShoppingContext
 from app.models.evidence import Evidence
@@ -9,6 +10,7 @@ from app.database.cache_repository import cache_repo
 from app.database.product_vector_repository import product_vector_repo
 from app.knowledge.ontology import ontology
 from app.understanding.query_expander import query_expander
+from app.understanding.intent_classifier import is_advisory_query
 from app.client.llm_client import llm_client_wrapper
 from app.core.config import settings
 
@@ -16,8 +18,8 @@ from app.core.config import settings
 # Reasoned starting points, not yet measured against real traffic - tune via
 # RETRIEVAL_MODE=shadow's side-by-side logging (see search()) before fully
 # cutting over to "vector".
-VECTOR_MIN_SCORE = 0.75          # below this: treat as a genuine miss (same zero-result UX as legacy)
-VECTOR_LOW_CONFIDENCE_BAND = 0.82  # [MIN_SCORE, this): shown, but Evidence.low_confidence=True
+VECTOR_MIN_SCORE = 0.80          # below this: treat as a genuine miss (same zero-result UX as legacy)
+VECTOR_LOW_CONFIDENCE_BAND = 0.84  # [MIN_SCORE, this): shown, but Evidence.low_confidence=True
 
 # A vector search run WITHOUT a category pre-filter (the zero-result self-heal
 # retry below, or a query that never resolved a category at all) has no
@@ -45,6 +47,22 @@ _VECTOR_CANDIDATE_LIMIT = 20
 _VECTOR_VERIFY_LIMIT = 5
 _LIVE_VERIFY_CONCURRENCY = 6
 
+def _has_keyword_overlap(product_name: str, query_q: Optional[str]) -> bool:
+    if not query_q:
+        return True
+    
+    # Tokenize query_q and extract specific/non-generic words
+    q_words = [w.lower() for w in query_q.split() if len(w) > 1 or w.isdigit()]
+    specific_q_words = [w for w in q_words if not ontology.is_generic_word(w)]
+    
+    # Fall back to using all query words if they are all classified as generic
+    check_words = specific_q_words if specific_q_words else q_words
+    if not check_words:
+        return True
+        
+    p_name_lower = product_name.lower()
+    return any(re.search(rf"\b{re.escape(w)}\b", p_name_lower) for w in check_words)
+
 def _best_match(search_res: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """Pick the first non-accessory result. A plain keyword search for a
     device name (e.g. "iphone 11") can just as easily return a charger/case
@@ -63,12 +81,15 @@ class SearchEngine:
     async def search(self, context: ShoppingContext) -> Evidence:
         """Dispatches on RETRIEVAL_MODE (app/core/config.py) - "legacy" (the
         original category+keyword pipeline against /products/search,
-        default/safest), "vector" (Atlas $vectorSearch on product_embeddings
+        safest fallback), "vector" (Atlas $vectorSearch on product_embeddings
         - see app/database/product_vector_repository.py and
-        app/jobs/sync_products.py), or "shadow" (serves legacy results but
+        app/jobs/sync_products.py), "shadow" (serves legacy results but
         also runs vector and logs both, to validate quality/coverage before
-        actually cutting production traffic over)."""
+        actually cutting production traffic over), or "hybrid" (default -
+        see _search_hybrid)."""
         mode = settings.RETRIEVAL_MODE
+        if mode == "hybrid":
+            return await self._search_hybrid(context)
         if mode == "vector":
             return await self._search_vector(context)
         if mode == "shadow":
@@ -87,6 +108,27 @@ class SearchEngine:
                 print(f"\n[SearchEngine][shadow] vector path errored (legacy result still served): {e}")
             return legacy_evidence
         return await self._search_legacy(context)
+
+    async def _search_hybrid(self, context: ShoppingContext) -> Evidence:
+        """Routes to whichever path suits the query's intent instead of
+        running both wastefully (shadow) or the same path always (legacy/
+        vector): purpose-driven or advisory queries ("tư vấn tủ lạnh tiết
+        kiệm điện") have no crisp keyword to match against /products/search,
+        so they go to vector first; everything else (a concrete product/
+        brand/keyword) goes to legacy first, since it's cheaper (no
+        embedding call) and already the more reliable path for exact terms.
+        Either way, a zero-result miss on the chosen path immediately tries
+        the other one before giving up - self-healing across paths instead
+        of just within one."""
+        vector_first = bool(context.purpose) or is_advisory_query(context.query_q or "")
+        primary, primary_name = (self._search_vector, "vector") if vector_first else (self._search_legacy, "legacy")
+        fallback, fallback_name = (self._search_legacy, "legacy") if vector_first else (self._search_vector, "vector")
+
+        evidence = await primary(context)
+        if evidence.products:
+            return evidence
+        print(f"\n[SearchEngine][hybrid] {primary_name} path returned 0 products - falling back to {fallback_name}.")
+        return await fallback(context)
 
     async def _search_vector(self, context: ShoppingContext) -> Evidence:
         """Semantic retrieval path. Only category_id (top-level, 14 buckets)
@@ -112,10 +154,17 @@ class SearchEngine:
             if cat_info:
                 category_id = cat_info["id"]
 
-        # Fold purpose/brand into the embedded text - purpose especially, since
-        # it's exactly the kind of need ("tiết kiệm điện", "đi biển") that a
-        # keyword search never used but semantic search benefits directly from.
-        query_text = " ".join(t for t in [context.query_q, context.purpose, context.brand] if t).strip()
+        # Fold purpose into the embedded text - it's exactly the kind of need
+        # ("tiết kiệm điện", "đi biển") that a keyword search never used but
+        # semantic search benefits directly from. Deliberately NOT folding in
+        # context.brand: live-measured, appending a brand name collapses this
+        # embedding model's similarity the same way it does on the document
+        # side (see sync_products.py's _strip_brand docstring) - "máy giặt
+        # toshiba" vs a brand-stripped document scored 0.700 vs 0.936 without
+        # it. Brand filtering already happens deterministically below (live
+        # re-verify's exact-substring check), so dropping it here only
+        # removes the dilution, not the actual filtering capability.
+        query_text = " ".join(t for t in [context.query_q, context.purpose] if t).strip()
 
         if not query_text:
             # Nothing to embed at all - a pure category/subcategory browse
@@ -209,8 +258,21 @@ class SearchEngine:
         for detail in details:
             if not detail:
                 continue
-            if (detail.get("stock") or 0) <= 0:
+            
+            # Calculate actual stock: sum of qty in sizes if sizes exist, otherwise top-level stock
+            sizes = detail.get("sizes")
+            if isinstance(sizes, list) and len(sizes) > 0:
+                actual_stock = sum(int(sz.get("qty") or 0) for sz in sizes if isinstance(sz, dict))
+            else:
+                actual_stock = int(detail.get("stock") or 0)
+            
+            # Update detail stock with actual calculated stock
+            detail["stock"] = actual_stock
+
+            # Verify keyword overlap to filter out completely unrelated products (Bug 1 root fix)
+            if not _has_keyword_overlap(detail.get("name", ""), context.query_q):
                 continue
+
             price = detail.get("price")
             if context.price_min is not None and (price is None or price < context.price_min):
                 continue
@@ -350,9 +412,13 @@ class SearchEngine:
         design (a wrong filter only narrows the candidate pool, it doesn't
         guarantee zero results the way a wrong category_id did against
         /products/search), so query_expander's LLM call would just be
-        spending tokens on a problem vector search doesn't have."""
+        spending tokens on a problem vector search doesn't have. "hybrid"
+        skips it for the same reason - _search_hybrid already cross-tries
+        BOTH vector and legacy as its own self-heal before returning here,
+        so a zero-result Evidence at this point already reflects both paths
+        failing, not just one path that expansion could still rescue."""
         evidence = await self.search(context)
-        if settings.RETRIEVAL_MODE == "vector" or evidence.products or not context.query_q:
+        if settings.RETRIEVAL_MODE in ("vector", "hybrid") or evidence.products or not context.query_q:
             return evidence
 
         # Category resolution is best-effort and can be wrong (find_category()

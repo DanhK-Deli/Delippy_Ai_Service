@@ -14,8 +14,8 @@ class GenericOpenAICompatibleProvider(OpenAICompatibleProvider):
     as it's OpenAI-wire-compatible. A backend with a genuinely different
     wire protocol still needs its own LLMProvider subclass."""
 
-    def __init__(self, name: str, api_key: Optional[str], base_url: str, model_cheap: str, model_complex: str, embedding_model: Optional[str] = None) -> None:
-        super().__init__(api_key=api_key, model_cheap=model_cheap, model_complex=model_complex, base_url=base_url)
+    def __init__(self, name: str, api_key: Optional[str], base_url: str, model_cheap: str, model_complex: str, embedding_model: Optional[str] = None, disable_reasoning: bool = False) -> None:
+        super().__init__(api_key=api_key, model_cheap=model_cheap, model_complex=model_complex, base_url=base_url, disable_reasoning=disable_reasoning)
         self.name = name
         self.embedding_model = embedding_model
 
