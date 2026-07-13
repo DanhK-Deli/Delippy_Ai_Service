@@ -1,0 +1,17 @@
+{
+  "phone_tablet": {"required": [{"field": "budget", "priority": 1}, {"field": "camera_need", "priority": 2}]},
+  "tech":         {"required": [{"field": "purpose", "priority": 1}, {"field": "budget", "priority": 2}]},
+  "appliance":    {"required": [{"field": "family_size", "priority": 1}, {"field": "budget", "priority": 2}]},
+  "vehicle":      {"required": [{"field": "usage", "priority": 1}, {"field": "budget", "priority": 2}]},
+  "food":         {"required": [{"field": "usage_timing", "priority": 1}, {"field": "budget", "priority": 2}]},
+  "fashion":      {"required": [{"field": "occasion", "priority": 1}, {"field": "budget", "priority": 2}]},
+  "beauty":       {"required": [{"field": "skin_need", "priority": 1}, {"field": "budget", "priority": 2}]},
+  "baby":         {"required": [{"field": "age", "priority": 1}, {"field": "budget", "priority": 2}]},
+  "book":         {"required": [{"field": "genre", "priority": 1}]},
+  "construction_furniture": {"required": [{"field": "space_type", "priority": 1}, {"field": "budget", "priority": 2}]},
+  "real_estate":            {"required": [{"field": "property_type", "priority": 1}, {"field": "location", "priority": 2}, {"field": "budget", "priority": 3}]},
+  "service_travel":         {"required": [{"field": "service_type", "priority": 1}, {"field": "budget", "priority": 2}]},
+  "art_music":              {"required": [{"field": "instrument_type", "priority": 1}, {"field": "budget", "priority": 2}]},
+  "industrial_agricultural": {"required": [{"field": "industry_purpose", "priority": 1}, {"field": "budget", "priority": 2}]},
+  "_default":     {"required": [{"field": "purpose", "priority": 1}, {"field": "budget", "priority": 2}]}
+}

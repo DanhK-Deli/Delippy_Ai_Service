@@ -1,0 +1,150 @@
+{
+  "tech": {
+    "laptop": {
+      "coding": {
+        "title": "Kinh nghiệm chọn Laptop học lập trình / IT",
+        "guideline": "Lập trình viên cần chú ý nhất đến RAM và CPU để build/chạy code mượt mà, không bị giật lag.",
+        "specs": {
+          "ram": "Nên chọn tối thiểu 16GB RAM để có thể chạy đồng thời IDE, nhiều tab trình duyệt và các máy ảo/container (như Docker) mà không bị treo máy.",
+          "ssd": "SSD tối thiểu 512GB chuẩn NVMe để tốc độ đọc/ghi dữ liệu nhanh, giúp khởi động phần mềm và build code chỉ trong vài giây.",
+          "cpu": "Nên ưu tiên CPU Intel Core i5 / AMD Ryzen 5 dòng H (hiệu năng cao) trở lên để xử lý các thuật toán nặng nhanh chóng."
+        }
+      },
+      "office": {
+        "title": "Kinh nghiệm chọn Laptop văn phòng / Học tập phổ thông",
+        "guideline": "Laptop văn phòng cần ưu tiên độ mượt mà cho các tác vụ cơ bản (Word, Excel, học online) và thiết kế gọn nhẹ để dễ mang đi lại.",
+        "specs": {
+          "ram": "8GB RAM là vừa đủ cho các nhu cầu cơ bản. Nếu thường xuyên mở hàng chục tab Chrome và file Excel nặng, nâng cấp lên 16GB sẽ giúp máy mượt mà hơn.",
+          "ssd": "256GB SSD là đủ dùng cho nhu cầu lưu trữ tài liệu học tập và văn phòng cơ bản. Ưu tiên SSD để máy khởi động nhanh.",
+          "weight": "Nên chọn các máy có trọng lượng dưới 1.6kg để thuận tiện bỏ vào balo mang đi làm, đi học mỗi ngày."
+        }
+      },
+      "gaming": {
+        "title": "Kinh nghiệm chọn Laptop chiến game mượt",
+        "guideline": "Laptop gaming đòi hỏi sự kết hợp mạnh mẽ giữa Card đồ họa rời (GPU), CPU khỏe và hệ thống tản nhiệt tốt.",
+        "specs": {
+          "gpu": "Đây là linh kiện quan trọng nhất quyết định số khung hình (FPS). Nên chọn tối thiểu RTX 3050 hoặc RTX 4050 để chơi mượt các game eSports và game AAA ở mức cấu hình trung bình - cao.",
+          "ram": "Tối thiểu 16GB RAM để tránh tình trạng nghẽn cổ chai và giật lag khi game load các phân cảnh nặng.",
+          "screen": "Nên chọn màn hình có tần số quét từ 144Hz trở lên để trải nghiệm chuyển động mượt mà, không bị xé hình trong các game bắn súng (FPS) hoặc đua xe."
+        }
+      },
+      "graphic_design": {
+        "title": "Kinh nghiệm chọn Laptop thiết kế đồ họa / Edit video",
+        "guideline": "Thiết kế đồ họa đòi hỏi màn hình có độ chuẩn màu cao và cấu hình mạnh để render hình ảnh/video nhanh chóng.",
+        "specs": {
+          "screen": "Màn hình bắt buộc phải đạt độ phủ màu rộng, tối thiểu 100% sRGB hoặc đạt chuẩn màu DCI-P3 để tránh tình trạng sai lệch màu sắc khi in ấn hoặc xuất bản hình ảnh.",
+          "gpu": "Cần card đồ họa rời chuyên dụng (như dòng Nvidia RTX) để hỗ trợ tăng tốc xử lý trong các phần mềm Adobe Photoshop, Illustrator, Premiere Pro.",
+          "ram": "Tối thiểu 16GB RAM cho đồ họa 2D và 32GB RAM cho đồ họa 3D / dựng phim chuyên nghiệp."
+        }
+      }
+    }
+  },
+  "appliance": {
+    "washing_machine": {
+      "family_size": {
+        "1": {
+          "title": "Cách chọn máy giặt cho người độc thân / Nhà 1-2 người",
+          "guideline": "Chọn máy giặt dung tích nhỏ để tránh lãng phí điện nước, ưu tiên dòng máy có chế độ giặt nhanh.",
+          "specs": {
+            "capacity": "Dung tích từ 7kg - 8kg là hoàn hảo nhất. Đủ để giặt quần áo hàng ngày và chăn mền mỏng cuối tuần.",
+            "type": "Máy giặt lồng đứng (cửa trên) sẽ giúp tiết kiệm chi phí đầu tư ban đầu và phù hợp với không gian nhỏ hẹp."
+          }
+        },
+        "4": {
+          "title": "Cách chọn máy giặt cho gia đình 3-5 người",
+          "guideline": "Gia đình có trẻ nhỏ hoặc đông người cần chọn máy giặt có dung tích vừa phải và công nghệ diệt khuẩn.",
+          "specs": {
+            "capacity": "Nên chọn máy giặt dung tích từ 9kg - 11kg để có thể gom đồ giặt 1 lần mỗi 2 ngày, hoặc giặt các loại chăn mền dày của gia đình.",
+            "inverter": "Bắt buộc chọn máy có công nghệ Inverter. Vì tần suất giặt của gia đình cao, Inverter sẽ giúp tiết kiệm đến 30-50% lượng điện tiêu thụ hàng tháng và máy vận hành cực kỳ êm ái."
+          }
+        },
+        "6": {
+          "title": "Cách chọn máy giặt cho gia đình đông thành viên (Trên 6 người)",
+          "guideline": "Ưu tiên chọn máy giặt công suất lớn, động cơ truyền động trực tiếp để hoạt động bền bỉ dưới tần suất giặt liên tục.",
+          "specs": {
+            "capacity": "Nên chọn máy giặt từ 12kg trở lên. Giúp giặt sạch khối lượng lớn quần áo mà không lo quá tải lồng giặt.",
+            "motor": "Nên ưu tiên động cơ truyền động trực tiếp (Direct Drive) vì vận hành siêu êm, giảm rung lắc tối đa và độ bền cực cao dưới sức nặng của lượng đồ lớn."
+          }
+        }
+      },
+      "technology": {
+        "inverter": {
+          "title": "Công nghệ Inverter trên máy giặt là gì?",
+          "education": "Động cơ biến tần Inverter tự động điều chỉnh vòng quay của lồng giặt phù hợp với lượng quần áo. Khác với máy giặt thường (luôn chạy hết công suất rồi ngắt), Inverter giúp máy vận hành êm, giảm tối đa tiếng ồn rung lắc và tiết kiệm điện năng vượt trội."
+        },
+        "direct_drive": {
+          "title": "Nên chọn máy giặt Truyền động trực tiếp hay Gián tiếp (Dây curoa)?",
+          "education": "Máy giặt truyền động trực tiếp (Direct Drive) gắn động cơ thẳng vào lồng giặt, giúp truyền lực mạnh mẽ, giảm tiếng ồn ma sát và cực kỳ bền bỉ. Máy giặt gián tiếp dùng dây curoa truyền lực nên sau một thời gian dây curoa sẽ bị nhão, gây tiếng ồn lớn khi vắt, nhưng bù lại giá thành rẻ hơn và dễ sửa chữa."
+        }
+      }
+    }
+  },
+  "beauty": {
+    "skincare": {
+      "skin_type": {
+        "oily_skin": {
+          "title": "Bí quyết chọn mỹ phẩm cho da dầu / hỗn hợp thiên dầu",
+          "guideline": "Da dầu dễ bị bí tắc lỗ chân lông gây mụn. Cần ưu tiên các sản phẩm mỏng nhẹ, không chứa dầu và kiềm dầu tốt.",
+          "specs": {
+            "cleanser": "Nên chọn sữa rửa mặt dạng gel tạo bọt nhẹ dịu, chứa thành phần hỗ trợ kiềm dầu/trị mụn như Salicylic Acid (BHA) hoặc Zinc PCA.",
+            "sunscreen": "Kem chống nắng bắt buộc phải ghi nhãn 'No Sebum', 'Oil Free' hoặc 'Matte Finish' để tránh tình trạng da đổ dầu bóng loáng sau vài tiếng sử dụng."
+          }
+        },
+        "dry_skin": {
+          "title": "Bí quyết chọn mỹ phẩm cho da khô / thiếu nước",
+          "guideline": "Da khô dễ bị bong tróc, nhanh lão hóa. Cần ưu tiên cấp ẩm sâu và phục hồi hàng rào bảo vệ da.",
+          "specs": {
+            "cleanser": "Chọn sữa rửa mặt dạng sữa hoặc kem, ít tạo bọt để tránh làm mất đi lớp dầu tự nhiên bảo vệ da.",
+            "moisturizer": "Nên chọn kem dưỡng chứa các thành phần siêu cấp nước và phục hồi như Hyaluronic Acid (HA), Ceramide, Glycerin để khóa ẩm tối đa."
+          }
+        },
+        "sensitive_skin": {
+          "title": "Bí quyết chọn mỹ phẩm cho da nhạy cảm / dễ kích ứng",
+          "guideline": "Da nhạy cảm cần hạn chế tối đa các thành phần gây kích ứng như hương liệu, cồn khô và paraben.",
+          "specs": {
+            "ingredients": "Chỉ mua các sản phẩm có ghi nhãn 'Hypoallergenic' (ít gây kích ứng) hoặc 'For Sensitive Skin'. Ưu tiên chiết xuất thiên nhiên lành tính như rau má (Centella), hoa cúc (Chamomile)."
+          }
+        }
+      }
+    }
+  },
+  "baby": {
+    "milk_formula": {
+      "age": {
+        "step_1": {
+          "title": "Kinh nghiệm chọn sữa bột cho trẻ sơ sinh (0 - 6 tháng tuổi)",
+          "guideline": "Trẻ sơ sinh hệ tiêu hóa còn non yếu. Sữa bột cần có công thức gần giống sữa mẹ nhất để bé dễ hấp thu.",
+          "specs": {
+            "formula": "Ưu tiên chọn các dòng sữa mát, chứa chất xơ hòa tan FOS/GOS và đạm Whey dễ tiêu hóa để ngăn ngừa táo bón cho bé."
+          }
+        },
+        "step_2": {
+          "title": "Kinh nghiệm chọn sữa bột cho bé từ 6 - 12 tháng tuổi",
+          "guideline": "Giai đoạn này bé bắt đầu ăn dặm và mọc răng, cần bổ sung nhiều canxi và dưỡng chất tăng đề kháng.",
+          "specs": {
+            "nutrients": "Chọn sữa giàu Canxi, Vitamin D3 để hỗ trợ phát triển chiều cao và mọc răng. Đồng thời bổ sung kháng thể (như Lactoferrin, HMO) để tăng cường hệ miễn dịch khi bé tiếp xúc với môi trường xung quanh."
+          }
+        },
+        "step_3": {
+          "title": "Kinh nghiệm chọn sữa bột cho bé trên 1 tuổi (1 - 3 tuổi)",
+          "guideline": "Trẻ trên 1 tuổi cần tập trung phát triển não bộ, chiều cao và cân nặng một cách toàn diện.",
+          "specs": {
+            "brain_growth": "Ưu tiên chọn sữa chứa hàm lượng DHA, ARA, Omega 3-6 cao để kích thích trí thông minh và khả năng quan sát của bé."
+          }
+        }
+      }
+    }
+  },
+  "real_estate": {
+    "type_choice": {
+      "apartment": {
+        "title": "Ưu và nhược điểm khi mua căn hộ Chung cư",
+        "education": "Ưu điểm của chung cư là hệ thống an ninh 24/7, có nhiều tiện ích nội khu (hồ bơi, siêu thị, khu vui chơi), không gian sinh hoạt tập trung ấm cúng. Nhược điểm là phải đóng phí quản lý hàng tháng, bị hạn chế khi muốn sửa chữa cấu trúc nhà và giá trị tăng chậm hơn nhà đất."
+      },
+      "townhouse": {
+        "title": "Ưu và nhược điểm khi mua Nhà riêng / Nhà đất",
+        "education": "Ưu điểm của nhà riêng là tính tự do cao (thoải mái sửa chữa, xây dựng lại), không tốn phí quản lý, có tính riêng tư tuyệt đối và giá trị đất tăng trưởng rất tốt theo thời gian. Nhược điểm là an ninh tự quản lý, không có sẵn các tiện ích như chung cư và giá mua ban đầu thường cao hơn nhiều so với căn hộ cùng diện tích."
+      }
+    }
+  }
+}

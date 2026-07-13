@@ -47,6 +47,8 @@ _VECTOR_CANDIDATE_LIMIT = 20
 _VECTOR_VERIFY_LIMIT = 5
 _LIVE_VERIFY_CONCURRENCY = 6
 
+_WEAK_WORDS = {"cây", "trái", "bộ", "đồ", "món", "cái", "con", "chiếc", "bao", "hộp", "túi"}
+
 def _has_keyword_overlap(product_name: str, query_q: Optional[str]) -> bool:
     if not query_q:
         return True
@@ -61,7 +63,15 @@ def _has_keyword_overlap(product_name: str, query_q: Optional[str]) -> bool:
         return True
         
     p_name_lower = product_name.lower()
-    return any(re.search(rf"\b{re.escape(w)}\b", p_name_lower) for w in check_words)
+    matched_words = {w for w in check_words if re.search(rf"\b{re.escape(w)}\b", p_name_lower)}
+    
+    # Reject matching only one weak word when the query has multiple check words
+    if len(check_words) >= 2 and len(matched_words) == 1:
+        matched_word = next(iter(matched_words))
+        if matched_word in _WEAK_WORDS:
+            return False
+            
+    return len(matched_words) > 0
 
 def _best_match(search_res: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """Pick the first non-accessory result. A plain keyword search for a

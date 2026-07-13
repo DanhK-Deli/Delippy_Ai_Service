@@ -14,7 +14,7 @@ class Settings:
     # without re-syncing every embedding + recreating the index. 1536 keeps
     # storage/query cost down while still Matryoshka-normalized (confirmed
     # L2 norm ~1.0) for cosine similarity.
-    EMBEDDING_DIMENSION: int = int(os.getenv("EMBEDDING_DIMENSION", "1536"))
+    EMBEDDING_DIMENSION: int = int(os.getenv("EMBEDDING_DIMENSION", "768"))
 
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY")
     OPENAI_MODEL_CHEAP: str = os.getenv("OPENAI_MODEL_CHEAP", "gpt-4o-mini")

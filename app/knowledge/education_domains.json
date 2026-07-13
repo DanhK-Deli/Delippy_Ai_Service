@@ -1,0 +1,12 @@
+{
+  "computer_buying": ["laptop", "máy tính xách tay", "notebook", "pc", "máy tính để bàn"],
+  "motion_sickness": ["say xe", "say tàu", "say sóng", "say máy bay", "thuốc say xe"],
+  "sore_throat": ["đau họng", "viêm họng", "ho khan", "ho có đờm", "thuốc ho"],
+  "washing_machine": ["máy giặt"],
+  "refrigerator": ["tủ lạnh", "tủ mát", "tủ đông"],
+  "air_conditioner": ["điều hòa", "máy lạnh"],
+  "skincare": ["chăm sóc da", "sữa rửa mặt", "kem chống nắng", "kem dưỡng", "srm", "kcn"],
+  "milk_formula": ["sữa bột", "sữa cho bé", "sữa em bé", "sữa trẻ em"],
+  "real_estate": ["chung cư", "căn hộ", "nhà đất", "nhà riêng", "mua nhà"],
+  "vehicle_buying": ["xe điện", "xe máy điện", "xe đạp điện", "ô tô điện"]
+}

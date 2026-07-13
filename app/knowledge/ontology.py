@@ -58,8 +58,14 @@ class Ontology:
     # "điện dân dụng - điện lạnh" (85) is deliberately its OWN "appliance" group,
     # not lumped with phones/computers, because "dùng để học tập/làm việc/giải
     # trí?" fits a laptop but not a máy giặt or tủ lạnh.
+    # Also reused as the SAME group-key resolution for requirement_schema.json
+    # (see requirement_schema_for()) - one mapping, two consumers, so a
+    # category can never resolve to a different "flavor" for its clarifying
+    # questions than for its required-attribute schema.
     _CLARIFY_GROUP_BY_CATEGORY_ID = {
-        79: "tech",       # điện thoại & tablet
+        79: "phone_tablet",  # điện thoại & tablet - split out from "tech" so
+                             # phones ask about budget/camera_need, not "purpose"
+                             # (which fits laptops, not phones).
         80: "tech",       # máy tính-máy ảnh máy quay
         85: "appliance",  # điện dân dụng - điện lạnh
         81: "vehicle",    # ô tô - xe máy - xe đạp
@@ -68,6 +74,11 @@ class Ontology:
         76: "beauty",     # sức khỏe & sắc đẹp
         86: "baby",       # mẹ & bé
         87: "book",       # sách & ebook
+        89: "construction_furniture",  # vật liệu xây dựng
+        82: "real_estate",             # đăng tin-quảng cáo bđs
+        84: "service_travel",          # dịch vụ & du lịch
+        83: "art_music",               # nghệ thuật & mỹ thuật
+        88: "industrial_agricultural", # công nghiệp - nông nghiệp
     }
 
     def __new__(cls, *args, **kwargs):
@@ -97,7 +108,51 @@ class Ontology:
         self._subcat_word_df, self._subcat_count = self._build_word_doc_freq()
         self.brands: Dict[str, List[str]] = self._load_json(os.path.join(base_dir, "brands.json"))
         self.accessory_rules: Dict[str, List[str]] = self._load_json(os.path.join(base_dir, "accessories.json"))
-        self.clarifying_questions: List[str] = self._load_json(os.path.join(base_dir, "clarifying_questions.json"))
+        # Flat, attribute-keyed (e.g. "budget", "purpose", "family_size") -
+        # NOT category-keyed. Shared across every category that needs a given
+        # attribute; requirement_schema.json is what decides WHICH attributes
+        # apply to which category (see requirement_schema_for()).
+        self.clarifying_questions: Dict[str, List[str]] = self._load_json(os.path.join(base_dir, "clarifying_questions.json"))
+        # category-group -> ordered (by "priority") required attribute names -
+        # the Consultation Flow's single source of truth for which questions
+        # to ask, and in what order, before searching an "expert"-level ask.
+        # See app/chat/orchestrator.py's _missing_requirement_fields().
+        self.requirement_schema: Dict[str, Any] = self._load_json(os.path.join(base_dir, "requirement_schema.json"))
+        # category-group -> ordered comparison criteria (e.g. ["price", "stock",
+        # "rating", "sold_count"]) - Compare Builder's single source of truth for
+        # WHAT to compare, so adding a criterion later (once real spec data
+        # exists) is a data change, not a code change. See app/chat/compare_builder.py.
+        self.compare_rule: Dict[str, Any] = self._load_json(os.path.join(base_dir, "compare_rule.json"))
+        # category-group -> requirement field -> value bucket -> spec
+        # thresholds ({"min"/"max", "label"}) - the Recommendation Engine's
+        # single source of truth for what counts as "suitable" for a given
+        # answered requirement. Unlike requirement_schema.json/compare_rule.json,
+        # deliberately has NO "_default" bucket: a category with no dedicated
+        # rule here has no spec_extractor support either, so
+        # recommendation_builder.build() must leave its products unscored
+        # rather than invent thresholds for specs it can't read. See
+        # app/chat/recommendation_builder.py + app/chat/spec_extractor.py.
+        self.guide_rule: Dict[str, Any] = self._load_json(os.path.join(base_dir, "guide_rule.json"))
+        # education_domain -> {"choices": [{"group","desc"}]} - the
+        # market-education content shown BEFORE the Consultation Flow's first
+        # gap-fill question, when the ask is still genuinely wide open (see
+        # orchestrator.py's education gate). Same "no entry, no feature" stance
+        # as guide_rule.json - a domain without one just keeps the old plain
+        # clarifying-question behavior.
+        #
+        # Deliberately keyed by "education_domain" (see education_domain_for()
+        # below), NOT by catalog category/group - a real buying decision
+        # ("laptop", "thuốc say xe") doesn't line up with the catalog's own
+        # taxonomy (both "kem chống nắng" and "thuốc say xe" sit under the
+        # SAME broad "sức khỏe & sắc đẹp" category, but need completely
+        # different educational content). Coupling Education to category
+        # would mean either sharing one group's content across unrelated
+        # decisions, or an ever-growing pile of category-specific requirement
+        # fields (skin_need, medicine_need, ...) just to tell them apart.
+        # education_domains.json resolves the free-text query DIRECTLY to a
+        # domain instead, independent of how the catalog itself is organized.
+        self.education_rule: Dict[str, Any] = self._load_json(os.path.join(base_dir, "education_rule.json"))
+        self.education_domains: Dict[str, List[str]] = self._load_json(os.path.join(base_dir, "education_domains.json"))
         self.faq_answers: Dict[str, str] = self._load_json(os.path.join(base_dir, "faq_answers.json"))
         # Keyed by sub_intent (see ShoppingContext.sub_intent):
         # "greeting"/"compliment"/"no_intent"/"out_of_scope"/"toxicity"/
@@ -121,7 +176,6 @@ class Ontology:
         # pagination replies stay varied and friendly without spending an LLM
         # call. (GREETING/SOCIAL/CHITCHAT now live in chitchat_responses above.)
         self.search_found_intros: List[str] = self._load_json(os.path.join(base_dir, "search_found_intros.json"))
-        self.search_found_outros: List[str] = self._load_json(os.path.join(base_dir, "search_found_outros.json"))
         self.search_empty_responses: List[str] = self._load_json(os.path.join(base_dir, "search_empty_responses.json"))
         self.product_info_intros: List[str] = self._load_json(os.path.join(base_dir, "product_info_intros.json"))
         self.product_info_outros: List[str] = self._load_json(os.path.join(base_dir, "product_info_outros.json"))
@@ -412,24 +466,115 @@ class Ontology:
                 }
         return None
 
-    def clarifying_questions_for(self, category: Optional[str]) -> List[str]:
-        """Clarifying-question templates that actually fit `category`: always
-        the universal brand/price ones, plus the category-flavored group (if
-        any) for whichever top-level category `category` resolves to. Re-
-        resolves via find_category() the same way subcategories_for() does, so
-        it works whether `category` is a slug (deterministic parser path) or
-        free text (AI parser path). If nothing resolves (category is None or
-        outside the catalog), returns ONLY the universal templates - applying
-        an electronics-flavored question to an unknown product is exactly the
-        bug this replaces."""
+    def _requirement_group_for(self, category: Optional[str]) -> Optional[str]:
+        """Resolves `category` (slug or free text, same as subcategories_for())
+        to its requirement_schema.json / clarifying_questions.json group key,
+        or None if it's unresolved / outside the catalog (callers fall back to
+        "_default" as appropriate)."""
+        if not category:
+            return None
+        cat_info = self.find_category(category)
+        if not cat_info:
+            return None
+        return self._CLARIFY_GROUP_BY_CATEGORY_ID.get(cat_info["id"])
+
+    def requirement_schema_for(self, category: Optional[str]) -> List[str]:
+        """Ordered required attribute names (e.g. ["family_size", "budget"])
+        for whichever requirement_schema.json group `category` resolves to,
+        sorted by each entry's "priority" - lowest asked first. Falls back to
+        the "_default" group when category is None/unresolved or has no
+        dedicated group of its own. Used by the Consultation Flow's gap-fill
+        loop (see orchestrator.py's _missing_requirement_fields()) to decide
+        WHICH attribute to ask about next, never by response_formatter/
+        response_planner directly."""
+        schema = self.requirement_schema if isinstance(self.requirement_schema, dict) else {}
+        group_key = self._requirement_group_for(category)
+        bucket = schema.get(group_key) if group_key else None
+        if not bucket:
+            bucket = schema.get("_default") or {}
+        entries = sorted(bucket.get("required", []), key=lambda e: e.get("priority", 0))
+        return [e["field"] for e in entries if e.get("field")]
+
+    def compare_criteria_for(self, category: Optional[str]) -> List[str]:
+        """Ordered comparison criteria (e.g. ["price", "stock", "rating",
+        "sold_count"]) for whichever compare_rule.json group `category`
+        resolves to - same group resolution as requirement_schema_for(),
+        falling back to "_default". Used by compare_builder.build()."""
+        rules = self.compare_rule if isinstance(self.compare_rule, dict) else {}
+        group_key = self._requirement_group_for(category)
+        criteria = rules.get(group_key) if group_key else None
+        return list(criteria or rules.get("_default") or [])
+
+    def guide_rule_for(self, category: Optional[str]) -> Optional[Any]:
+        """(group_key, rule_dict) for whichever guide_rule.json group
+        `category` resolves to - same group resolution as
+        requirement_schema_for()/compare_criteria_for(). Returns None (no
+        "_default" fallback) when the group has no dedicated scoring rule -
+        callers must treat that as "can't score this category", not "score
+        it generically". Used by app/chat/recommendation_builder.py."""
+        rules = self.guide_rule if isinstance(self.guide_rule, dict) else {}
+        group_key = self._requirement_group_for(category)
+        if not group_key or group_key not in rules:
+            return None
+        return group_key, rules[group_key]
+
+    def education_domain_for(self, text: Optional[str]) -> Optional[str]:
+        """Resolves free text (normally context.query_q - the actual buying
+        need, e.g. "laptop", "thuốc say xe") to an education_domains.json
+        domain key via plain keyword containment - deliberately independent
+        of find_category()/the catalog taxonomy (see education_rule's own
+        note on why). v0 scope: first matching domain wins; a query matching
+        no domain's keywords returns None, and callers must treat that as
+        "no Education content available", never fall back to a category-based
+        guess."""
+        if not text:
+            return None
+        domains = self.education_domains if isinstance(self.education_domains, dict) else {}
+        lowered = text.lower()
+        for domain, keywords in domains.items():
+            if any(keyword in lowered for keyword in keywords):
+                return domain
+        return None
+
+    def education_rule_for(self, domain: Optional[str]) -> Optional[Dict[str, Any]]:
+        """{"choices": [{"group","desc"}]} for `domain` (see
+        education_domain_for()), or None when there's no authored content for
+        it yet - callers must skip Education entirely rather than invent
+        generic filler. Used by orchestrator.py's Consultation Flow to decide
+        WHAT to show before its first gap-fill question."""
+        rules = self.education_rule if isinstance(self.education_rule, dict) else {}
+        if not domain or domain not in rules:
+            return None
+        return rules[domain]
+
+    def clarifying_questions_for_field(self, category: Optional[str], field: str) -> List[str]:
+        """Question templates for ONE specific requirement attribute (e.g.
+        "budget", "family_size") - clarifying_questions.json is flat/attribute-
+        keyed (shared across every category that needs that attribute), so
+        `category` isn't actually needed for the lookup itself; kept in the
+        signature for symmetry with requirement_schema_for() and in case a
+        future category-specific override is ever needed. Caller does
+        random.choice() over the result, matching every other call site's
+        existing convention (see orchestrator.py)."""
         cq = self.clarifying_questions if isinstance(self.clarifying_questions, dict) else {}
-        templates = list(cq.get("universal", []))
-        if category:
-            cat_info = self.find_category(category)
-            if cat_info:
-                group_key = self._CLARIFY_GROUP_BY_CATEGORY_ID.get(cat_info["id"])
-                if group_key:
-                    templates += cq.get(group_key, [])
+        return list(cq.get(field, []))
+
+    def clarifying_questions_for(self, category: Optional[str]) -> List[str]:
+        """Every clarifying-question template that fits `category` - i.e. the
+        templates for every attribute in its requirement schema, plus
+        "budget" always (every category can be asked about price). Re-
+        resolves via requirement_schema_for()/find_category() the same way
+        subcategories_for() does, so it works whether `category` is a slug
+        (deterministic parser path) or free text (AI parser path). Used by
+        response_formatter's broad-query nudge and response_planner's
+        too-vague-to-show check - callers that just want SOME reasonable
+        narrowing question, not a specific attribute (see
+        clarifying_questions_for_field() for that)."""
+        fields = set(self.requirement_schema_for(category)) | {"budget"}
+        cq = self.clarifying_questions if isinstance(self.clarifying_questions, dict) else {}
+        templates = []
+        for field in fields:
+            templates += cq.get(field, [])
         return templates
 
     def subcategory_id_for(self, category: str, subcategory_name: str) -> Optional[int]:

@@ -1,7 +1,7 @@
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Query, Request, BackgroundTasks
 from fastapi.responses import JSONResponse
 
 from app.models.ecommerce.product import (
@@ -9,8 +9,24 @@ from app.models.ecommerce.product import (
     ProductSearchResponse,
 )
 from app.client.delippy_client import delippy_client
+from app.jobs.sync_products import sync_products, sync_categories
 
 router = APIRouter(prefix="/api/v1", tags=["Products"])
+
+
+@router.post("/products/sync")
+async def trigger_sync(background_tasks: BackgroundTasks):
+    async def run_sync():
+        print("\n[SyncJob] Starting background sync categories + products...")
+        try:
+            await sync_categories()
+            await sync_products()
+            print("[SyncJob] Background sync completed successfully.\n")
+        except Exception as e:
+            print(f"\n[SyncJob] Background sync failed: {e}\n")
+
+    background_tasks.add_task(run_sync)
+    return {"success": True, "message": "Product and category synchronization started in the background."}
 
 
 def _auth_header(request: Request) -> Optional[str]:

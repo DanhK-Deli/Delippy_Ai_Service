@@ -1,0 +1,156 @@
+[
+  {
+    "id": "iphone_specific_model_none",
+    "anchor": true,
+    "query": "iPhone 16 128GB",
+    "context": [],
+    "output": {"intent": "SEARCH", "consultation_level": "none", "category": "điện thoại & tablet", "brand": "apple", "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": "iPhone 16", "expanded_queries": []}
+  },
+  {
+    "id": "laptop_dell_assist",
+    "anchor": true,
+    "query": "Laptop Dell",
+    "context": [],
+    "output": {"intent": "SEARCH", "consultation_level": "assist", "category": "laptop theo nhãn hiệu", "brand": "dell", "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": "laptop", "expanded_queries": []}
+  },
+  {
+    "id": "laptop_coding_expert",
+    "anchor": true,
+    "query": "Tư vấn laptop cho lập trình khoảng 20 triệu",
+    "context": [],
+    "output": {"intent": "SEARCH", "consultation_level": "expert", "category": "laptop theo nhãn hiệu", "brand": null, "price_min": null, "price_max": 20000000, "purpose": "lập trình", "compare_targets": [], "product": null, "query_q": "laptop", "expanded_queries": ["laptop lập trình viên", "laptop văn phòng"]}
+  },
+  {
+    "id": "thanks_social",
+    "anchor": true,
+    "query": "cảm ơn bạn nhiều nha",
+    "context": [],
+    "output": {"intent": "SOCIAL", "sub_intent": "compliment", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": null, "expanded_queries": []}
+  },
+  {
+    "id": "bare_ok_no_pending_question",
+    "anchor": true,
+    "query": "ok",
+    "context": ["(Conversation History: assistant's last message did not ask a question)"],
+    "output": {"intent": "SOCIAL", "sub_intent": "no_intent", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": null, "expanded_queries": []}
+  },
+  {
+    "id": "bare_co_confirms_pending_question",
+    "anchor": true,
+    "query": "có",
+    "context": [
+      "(Conversation History: assistant just asked \"Bạn có muốn xem chi tiết sản phẩm Laptop Asus Vivobook này không?\")",
+      "(Products already shown: [{\"slug\":\"laptop-asus-vivobook-abc123\",\"name\":\"Laptop Asus Vivobook\"}])"
+    ],
+    "output": {"intent": "PRODUCT_INFO", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": "laptop-asus-vivobook-abc123", "query_q": null, "expanded_queries": []}
+  },
+  {
+    "id": "compare_by_position",
+    "anchor": true,
+    "query": "so sánh 2 loại đầu tiên",
+    "context": [
+      "(Products already shown: [{\"slug\":\"cac-loai-gao-luong-thuc-thuc-pham\",\"name\":\"CÁC LOẠI GẠO , LƯƠNG THƯC, THỰC PHẨM\"},{\"slug\":\"10-hop-nhua-dung-thuc-pham-500ml\",\"name\":\"10 HỘP NHỰA ĐỰNG THỰC PHẨM 500ml\"},{\"slug\":\"hang-thuc-pham-banh-xep-tom-thit\",\"name\":\"hàng thực phẩm ( bánh xếp tôm thịt)\"}])"
+    ],
+    "output": {"intent": "COMPARE", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": ["CÁC LOẠI GẠO , LƯƠNG THƯC, THỰC PHẨM", "10 HỘP NHỰA ĐỰNG THỰC PHẨM 500ml"], "product": null, "query_q": null, "expanded_queries": []}
+  },
+  {
+    "id": "informational_not_product_chitchat",
+    "anchor": true,
+    "query": "tìm hiểu về collagen có tác dụng gì không",
+    "context": [],
+    "output": {"intent": "CHITCHAT", "sub_intent": "out_of_scope", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": null, "expanded_queries": []}
+  },
+  {
+    "id": "beach_hat_purpose",
+    "anchor": false,
+    "query": "CÓ quần vào áo rồi. Thì giờ tìm cho tôi nón để tôi đi biển",
+    "context": [],
+    "output": {"intent": "SEARCH", "consultation_level": "assist", "category": "thời trang nữ", "brand": null, "price_min": null, "price_max": null, "purpose": "đi biển", "compare_targets": [], "product": null, "query_q": "nón", "expanded_queries": ["mũ", "nón lưỡi trai", "mũ đi biển"]}
+  },
+  {
+    "id": "beach_vehicle_purpose_carryover",
+    "anchor": false,
+    "query": "Đi biển thì cũng cần phương tiện di chuyển nữa. Bạn có bán khong",
+    "context": [],
+    "output": {"intent": "SEARCH", "consultation_level": "assist", "category": "ô tô - xe máy - xe đạp", "brand": null, "price_min": null, "price_max": null, "purpose": "đi biển", "compare_targets": [], "product": null, "query_q": "xe máy", "expanded_queries": ["xe đạp", "xe scooter"]}
+  },
+  {
+    "id": "hiking_pants_purpose",
+    "anchor": false,
+    "query": "Tôi muốn mua quần để chuẩn bị đi leo núi",
+    "context": [],
+    "output": {"intent": "SEARCH", "consultation_level": "assist", "category": "thời trang nam", "brand": null, "price_min": null, "price_max": null, "purpose": "leo núi", "compare_targets": [], "product": null, "query_q": "quần dài", "expanded_queries": ["quần túi hộp", "quần jogger", "quần thể thao nam"]}
+  },
+  {
+    "id": "school_backpack_purpose",
+    "anchor": false,
+    "query": "tìm balo đi học",
+    "context": [],
+    "output": {"intent": "SEARCH", "consultation_level": "assist", "category": "thời trang & phụ kiện", "brand": null, "price_min": null, "price_max": null, "purpose": "học tập", "compare_targets": [], "product": null, "query_q": "balo", "expanded_queries": ["cặp học sinh", "túi xách đi học", "ba lô"]}
+  },
+  {
+    "id": "sunburn_symptom_expert",
+    "anchor": false,
+    "query": "da tôi bị cháy nắng rát quá, mua gì để phục hồi bây giờ",
+    "context": [],
+    "output": {"intent": "SEARCH", "consultation_level": "expert", "category": "chăm sóc da", "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": "kem da", "expanded_queries": ["gel", "trị cháy nắng", "kem dưỡng ẩm"]}
+  },
+  {
+    "id": "joke_request_chitchat",
+    "anchor": false,
+    "query": "Bạn kể chuyện cười cho tôi được không",
+    "context": [],
+    "output": {"intent": "CHITCHAT", "sub_intent": "out_of_scope", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": null, "expanded_queries": []}
+  },
+  {
+    "id": "evening_wish_social",
+    "anchor": false,
+    "query": "chúc bạn buổi tối vui vẻ",
+    "context": [],
+    "output": {"intent": "SOCIAL", "sub_intent": "compliment", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": null, "expanded_queries": []}
+  },
+  {
+    "id": "toxicity_complaint",
+    "anchor": false,
+    "query": "dở vậy, tìm hoài không ra",
+    "context": [],
+    "output": {"intent": "CHITCHAT", "sub_intent": "toxicity", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": null, "expanded_queries": []}
+  },
+  {
+    "id": "help_capabilities_question",
+    "anchor": false,
+    "query": "bạn làm được những gì",
+    "context": [],
+    "output": {"intent": "CHITCHAT", "sub_intent": "help_capabilities", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": null, "expanded_queries": []}
+  },
+  {
+    "id": "demonstrative_reference_product_info",
+    "anchor": false,
+    "query": "cái ở hà nội đó cho tôi xem chi tiết nó",
+    "context": [
+      "(Products already shown: [{\"slug\":\"dat-nen-quan-9-ha-noi-abc123\",\"name\":\"Đất nền Quận 9 - Hà Nội\"},{\"slug\":\"sim-so-dep-giam-doc-xyz\",\"name\":\"Sim số đẹp giới bất động sản\"}])"
+    ],
+    "output": {"intent": "PRODUCT_INFO", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": "dat-nen-quan-9-ha-noi-abc123", "query_q": null, "expanded_queries": []}
+  },
+  {
+    "id": "home_service_out_of_scope",
+    "anchor": false,
+    "query": "tìm dịch vụ sửa ống nước tại nhà",
+    "context": [],
+    "output": {"intent": "CHITCHAT", "sub_intent": "out_of_scope", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": null, "expanded_queries": []}
+  },
+  {
+    "id": "delivery_service_out_of_scope",
+    "anchor": false,
+    "query": "giao trà sữa cho tôi",
+    "context": [],
+    "output": {"intent": "CHITCHAT", "sub_intent": "out_of_scope", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": null, "expanded_queries": []}
+  },
+  {
+    "id": "movie_recommendation_out_of_scope",
+    "anchor": false,
+    "query": "gợi ý giúp tôi vài bộ phim hay để xem cuối tuần",
+    "context": [],
+    "output": {"intent": "CHITCHAT", "sub_intent": "out_of_scope", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": null, "expanded_queries": []}
+  }
+]

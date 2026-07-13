@@ -42,3 +42,6 @@ xgboost==3.2.0
 python-multipart==0.0.9
 pymongo==4.9.1
 motor==3.6.0
+torch
+transformers
+einops

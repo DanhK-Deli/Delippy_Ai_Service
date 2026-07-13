@@ -64,6 +64,7 @@ class EvidenceBuilder:
     def build_detail_evidence(self, detail: Dict[str, Any], reviews_summary: Optional[Dict[str, Any]] = None, related: List[Dict[str, Any]] = None) -> Evidence:
         cleaned_detail = {
             "name": detail.get("name"),
+            "slug": detail.get("slug"),
             "price": detail.get("price"),
             "original_price": detail.get("original_price"),
             "stock": detail.get("stock"),

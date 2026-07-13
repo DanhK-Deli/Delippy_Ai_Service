@@ -1,0 +1,112 @@
+{
+  "tech": {
+    "purpose": {
+      "coding": {
+        "ram": {
+          "min": 16, "weight": 5,
+          "label": "đủ lập trình mượt mà",
+          "warning": "RAM chỉ {value}GB nên có thể giật/lag khi mở nhiều IDE, container hoặc máy ảo cùng lúc",
+          "education": "Lập trình viên cần tối thiểu 16GB RAM để chạy mượt các công cụ viết code (IDE), trình giả lập hoặc nhiều container/máy ảo cùng lúc mà không bị giật, lag."
+        },
+        "ssd": {
+          "min": 512, "weight": 4,
+          "label": "khởi động và build nhanh",
+          "warning": "SSD chỉ {value}GB nên có thể nhanh đầy nếu lưu nhiều dự án/máy ảo",
+          "education": "SSD từ 512GB trở lên giúp máy khởi động nhanh và đủ chỗ lưu nhiều dự án, thư viện code, máy ảo mà không phải dọn dẹp liên tục."
+        },
+        "gpu": {
+          "weight": 1,
+          "label": "Có card đồ họa rời, hỗ trợ thêm cho các tác vụ AI/render nhẹ",
+          "warning": "không có card đồ họa rời nên các tác vụ AI/render nặng sẽ chậm hơn",
+          "education": "Card đồ họa rời không bắt buộc cho lập trình thông thường, nhưng sẽ hữu ích nếu bạn có làm thêm các tác vụ AI/machine learning hoặc render đồ họa."
+        },
+        "weight_kg": {
+          "max": 1.6, "weight": 2,
+          "label": "gọn nhẹ, tiện mang đi làm/học",
+          "warning": "nặng {value}kg nên mang đi lại sẽ hơi bất tiện",
+          "education": "Nếu thường xuyên mang laptop đi làm/học/quán cà phê, nên ưu tiên máy dưới 1.6kg để đỡ nặng vai khi di chuyển nhiều."
+        }
+      },
+      "office": {
+        "ram": {
+          "min": 8, "weight": 4,
+          "label": "đủ dùng văn phòng",
+          "warning": "RAM chỉ {value}GB có thể chậm khi mở nhiều tab/ứng dụng cùng lúc",
+          "education": "Công việc văn phòng (Word/Excel/họp online) chỉ cần từ 8GB RAM là đủ mượt, không cần cấu hình quá cao."
+        },
+        "ssd": {
+          "min": 256, "weight": 3,
+          "label": "lưu trữ cơ bản",
+          "warning": "SSD chỉ {value}GB nên cần dọn dẹp thường xuyên",
+          "education": "SSD 256GB là đủ cho nhu cầu lưu trữ văn bản/tài liệu cơ bản, không cần dung lượng lớn như dân thiết kế hay lập trình."
+        },
+        "weight_kg": {
+          "max": 1.8, "weight": 2,
+          "label": "gọn nhẹ, tiện di chuyển",
+          "warning": "nặng {value}kg nên di chuyển sẽ hơi bất tiện",
+          "education": "Nếu hay di chuyển giữa nhà và văn phòng, nên chọn máy nhẹ dưới 1.8kg và có pin trâu để không phải mang theo sạc."
+        }
+      },
+      "gaming": {
+        "ram": {
+          "min": 16, "weight": 3,
+          "label": "đủ chiến game mượt",
+          "warning": "RAM chỉ {value}GB có thể giật khi chơi game nặng",
+          "education": "Chơi game hiện đại cần tối thiểu 16GB RAM để tránh giật/lag khi game tải nhiều tài nguyên cùng lúc."
+        },
+        "gpu": {
+          "weight": 10,
+          "label": "Có card đồ họa rời, chiến game AAA mượt mà",
+          "warning": "không có card đồ họa rời nên chơi game nặng sẽ giật/lag",
+          "education": "Card đồ họa rời (GPU) là yếu tố QUAN TRỌNG NHẤT khi chơi game - không có GPU rời thì hầu hết game nặng sẽ giật/lag dù RAM/CPU có mạnh đến đâu."
+        }
+      }
+    }
+  },
+  "appliance": {
+    "family_size": {
+      "1": {
+        "capacity": {
+          "min": 7, "max": 8, "weight": 5,
+          "label": "phù hợp người độc thân",
+          "warning": "dung tích {value}kg có thể hơi lệch so với nhu cầu 1 người",
+          "education": "Người ở một mình thường chỉ cần máy giặt dung tích 7-8kg là đủ, chọn dung tích lớn hơn sẽ tốn điện/nước không cần thiết."
+        },
+        "inverter": {
+          "weight": 2,
+          "label": "Có công nghệ Inverter, tiết kiệm điện hơn",
+          "warning": "không có công nghệ Inverter nên điện năng tiêu thụ sẽ cao hơn",
+          "education": "Công nghệ Inverter điều chỉnh tốc độ động cơ linh hoạt thay vì chạy full công suất liên tục, giúp tiết kiệm điện hơn về lâu dài dù giá ban đầu cao hơn."
+        }
+      },
+      "2": {
+        "capacity": {
+          "min": 7, "max": 9, "weight": 5,
+          "label": "phù hợp gia đình 2 người",
+          "warning": "dung tích {value}kg có thể hơi lệch so với nhu cầu 2 người",
+          "education": "Gia đình 2 người thường phù hợp với máy giặt dung tích 7-9kg, đủ cho khối lượng đồ giặt trung bình mỗi lần."
+        },
+        "inverter": {
+          "weight": 2,
+          "label": "Có công nghệ Inverter, tiết kiệm điện hơn",
+          "warning": "không có công nghệ Inverter nên điện năng tiêu thụ sẽ cao hơn",
+          "education": "Công nghệ Inverter điều chỉnh tốc độ động cơ linh hoạt thay vì chạy full công suất liên tục, giúp tiết kiệm điện hơn về lâu dài dù giá ban đầu cao hơn."
+        }
+      },
+      "4": {
+        "capacity": {
+          "min": 9, "max": 11, "weight": 5,
+          "label": "phù hợp gia đình 4 người",
+          "warning": "dung tích {value}kg có thể hơi lệch so với nhu cầu 4 người",
+          "education": "Gia đình 4 người nên chọn máy giặt dung tích 9-11kg để giặt đủ khối lượng đồ mỗi lần, tránh phải giặt nhiều mẻ gây tốn điện/nước."
+        },
+        "inverter": {
+          "weight": 2,
+          "label": "Có công nghệ Inverter, tiết kiệm điện hơn",
+          "warning": "không có công nghệ Inverter nên điện năng tiêu thụ sẽ cao hơn",
+          "education": "Công nghệ Inverter điều chỉnh tốc độ động cơ linh hoạt thay vì chạy full công suất liên tục, giúp tiết kiệm điện hơn về lâu dài dù giá ban đầu cao hơn."
+        }
+      }
+    }
+  }
+}

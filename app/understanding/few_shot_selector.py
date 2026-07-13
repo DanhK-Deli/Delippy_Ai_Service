@@ -1,0 +1,81 @@
+import json
+import os
+from typing import Any, Dict, List, Optional
+
+from app.client.llm_client import llm_client_wrapper
+from app.database.conversation_repository import cosine_similarity
+
+_EXAMPLES_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "prompts", "parser_examples.json")
+
+# How many similarity-selected examples to add on top of the fixed anchors
+# (see _load_examples' own note) - tunable without touching the examples
+# data or the selection logic itself.
+_DYNAMIC_K = 3
+
+_examples: Optional[List[Dict[str, Any]]] = None
+_pool_embeddings: Optional[List[List[float]]] = None
+
+def _load_examples() -> List[Dict[str, Any]]:
+    global _examples
+    if _examples is None:
+        with open(_EXAMPLES_PATH, "r", encoding="utf-8") as f:
+            _examples = json.load(f)
+    return _examples
+
+def _pool() -> List[Dict[str, Any]]:
+    return [ex for ex in _load_examples() if not ex.get("anchor")]
+
+def _anchors() -> List[Dict[str, Any]]:
+    return [ex for ex in _load_examples() if ex.get("anchor")]
+
+def _get_pool_embeddings() -> List[List[float]]:
+    """Embeddings for the POOL examples only (anchors are always included
+    regardless of similarity, so never need embedding) - computed ONCE per
+    process via the local Nomic model (see llm_client.get_embedding, tried
+    local-first) and cached in memory, since these 13ish example strings are
+    static for the process lifetime. A per-request embedding call would
+    defeat the whole point of this optimization."""
+    global _pool_embeddings
+    if _pool_embeddings is None:
+        _pool_embeddings = [llm_client_wrapper.get_embedding(ex["query"]) for ex in _pool()]
+    return _pool_embeddings
+
+def _render_example(ex: Dict[str, Any]) -> str:
+    lines = [f'Query: "{ex["query"]}"']
+    lines.extend(ex.get("context") or [])
+    lines.append(f'Output: {json.dumps(ex["output"], ensure_ascii=False)}')
+    return "\n".join(lines)
+
+def select_examples(message_vector: Optional[List[float]]) -> str:
+    """Renders the few-shot block for parser_prompt.txt's {examples}
+    placeholder - a fixed ANCHOR set (one example per major decision
+    boundary: SEARCH none/assist/expert, SOCIAL compliment/no_intent,
+    PRODUCT_INFO confirm, COMPARE by position, CHITCHAT-vs-SEARCH) always
+    included, PLUS the _DYNAMIC_K pool examples most similar to THIS
+    message (by cosine similarity over the same local Nomic embedding
+    already computed for the semantic parse cache - see
+    orchestrator.py/parser.py's query_vector_lazy, reused here for free).
+
+    Cuts parser_prompt.txt's fixed few-shot cost from ~3,900 tokens (all 21
+    examples, every turn) to ~1,700 (anchors + 3), while the anchor set
+    keeps the model from losing coverage of edge cases (a bare "ok" vs "có"
+    confirming a pending question, "tìm hiểu về X" reading as CHITCHAT not
+    SEARCH...) that a pure top-K-by-similarity selection could drop if the
+    live message doesn't happen to embed close to that exact stored
+    example's wording. If `message_vector` is unavailable (embedding
+    failed), only the anchors are used - still full boundary coverage, just
+    without the topic-specific extras."""
+    anchors = _anchors()
+    selected = list(anchors)
+
+    if message_vector:
+        pool = _pool()
+        embeddings = _get_pool_embeddings()
+        scored = [
+            (cosine_similarity(message_vector, emb) if emb else 0.0, ex)
+            for ex, emb in zip(pool, embeddings)
+        ]
+        scored.sort(key=lambda pair: pair[0], reverse=True)
+        selected += [ex for _, ex in scored[:_DYNAMIC_K]]
+
+    return "\n\n".join(_render_example(ex) for ex in selected)

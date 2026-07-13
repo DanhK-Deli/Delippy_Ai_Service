@@ -91,6 +91,70 @@ _PROMPT_PROBE_RE = re.compile(
 def is_prompt_probe_query(query: str) -> bool:
     return bool(_PROMPT_PROBE_RE.search((query or "").lower()))
 
+# A no-preference reply ("không biết", "tùy") means "don't ask me this again,
+# I have no answer" - distinct from an unparseable reply. Moved here (from
+# orchestrator.py, its original home) so parser.py can ALSO use it: a bare
+# "nào cũng được" carries no real product intent, so its embedding is
+# dominated by the generic indifference phrasing, not the topic - the SAME
+# failure shape as the already-fixed bare-price-phrase case (see parser.py's
+# skip_semantic_cache), and confirmed live to cause the same kind of
+# cross-session hijack (an unrelated cached "health/beauty" concept overwrote
+# a live skincare consultation's own topic).
+_NO_PREFERENCE_MARKERS = [
+    "không biết", "khong biet", "chưa biết", "chua biet",
+    "tùy", "tuy", "không quan tâm", "khong quan tam",
+    "bất kỳ", "bat ky", "không rành", "khong ranh",
+    "không quan trọng", "khong quan trong", "chưa rõ", "chua ro",
+]
+
+# "[interrogative] + cũng được/đc/ok" is a productive Vietnamese construction
+# for "whichever/whatever - no preference" ("bao nhiêu cũng được", "cái nào
+# cũng được", "gì cũng được", "sao cũng được", "lúc nào cũng được", "ở đâu
+# cũng được"...) - a STRUCTURAL pattern, not a fixed set of phrases, so this
+# regex generalizes across every question-word variant instead of needing a
+# new literal entry in _NO_PREFERENCE_MARKERS each time a new one shows up.
+_INDIFFERENCE_RE = re.compile(r"cũng (được|đc|dc|ok|okay)\b")
+
+def is_no_preference_reply(message: str) -> bool:
+    text = (message or "").lower()
+    return any(marker in text for marker in _NO_PREFERENCE_MARKERS) or bool(_INDIFFERENCE_RE.search(text))
+
+# A "why does this matter" / "which technology is better" question (Sprint 4's
+# Tech Explain) - "tại sao"/"vì sao" cover an explicit why-ask; the rest cover
+# an implicit "explain this choice" ask ("nên chọn ... hay ...", "... hay ...
+# cái nào tốt hơn", "khác nhau như thế nào", "loại nào tốt hơn") without the
+# word "tại sao" itself (e.g. "nên chọn truyền động trực tiếp hay gián tiếp").
+# v0/regex-only - shares this codebase's usual "Requirement Resolver v0"
+# scope, not an AI classifier.
+_TECH_EXPLAIN_RE = re.compile(
+    r"tại sao|vì sao|tai sao|vi sao|"
+    r"sao (lại )?(cần|nên)|"
+    r"nên chọn .+ hay .+|nen chon .+ hay .+|"
+    r".+ hay .+ (cái nào|loại nào|cai nao|loai nao) tốt hơn|"
+    r"khác nhau (như thế nào|ra sao)|khac nhau (nhu the nao|ra sao)|"
+    r"loại nào tốt hơn|loai nao tot hon|nên dùng loại nào|nen dung loai nao",
+    re.IGNORECASE,
+)
+
+def is_tech_explain_query(message: str) -> bool:
+    return bool(_TECH_EXPLAIN_RE.search((message or "").lower()))
+
+# A request for a DEEPER look at a specific, already-selected product (e.g.
+# "tư vấn kỹ hơn về xe máy điện yadea s3") - distinct from is_tech_explain_query
+# (a category-wide "why does X matter" question, gated on SEARCH intent) since
+# this only fires alongside PRODUCT_INFO, where a specific product is already
+# resolved. v0/regex-only, same scope as the rest of this file.
+_DEEP_CONSULT_RE = re.compile(
+    r"kỹ hơn|ky hon|chi tiết hơn|chi tiet hon|tư vấn kỹ|tu van ky|"
+    r"phân tích kỹ|phan tich ky|đánh giá (chi tiết|kỹ)|danh gia (chi tiet|ky)|"
+    r"review (chi tiết|kỹ)|nói rõ hơn|noi ro hon|biết rõ hơn|biet ro hon|"
+    r"sâu hơn|sau hon|tư vấn chuyên sâu|tu van chuyen sau|phân tích chuyên sâu|phan tich chuyen sau",
+    re.IGNORECASE,
+)
+
+def is_deep_consult_query(message: str) -> bool:
+    return bool(_DEEP_CONSULT_RE.search((message or "").lower()))
+
 def is_too_vague_for_results(context: ShoppingContext) -> bool:
     """True when a SEARCH turn gave no brand/price/purpose AND query_q
     reduces to at most one meaningful word (single-char, non-digit tokens
@@ -181,7 +245,6 @@ OUT_OF_SCOPE_MARKERS = [
     "hát đi", "dịch tiếng", "chứng khoán", "bitcoin", "bóng đá", "kết quả xổ số",
     "xổ số", "đánh lô", "chính trị", "tôn giáo", "đặt xe", "gọi taxi", "mua vé số",
     "vé máy bay", "đặt đồ ăn", "mua thẻ cào", "nạp game",
-    "tìm hiểu", "tim hieu", "tìm hiểu về", "tìm hiểu thêm",
     "giá vàng", "gia vang", "giá xăng", "gia xang", "tỷ giá", "ty gia",
     "giá đô", "gia do", "giá chứng khoán", "gia chung khoan",
     "lãi suất ngân hàng", "lai suat ngan hang",
@@ -222,6 +285,32 @@ _SEARCH_RE = re.compile(
     r"\b(?:" + "|".join(re.escape(kw) for kw in ["tìm", "tim", "kiếm", "kiem", "mua", "tư vấn", "tu van", "gợi ý", "goi y"]) + r")\b"
 )
 
+# A concrete shopping ask ("...tìm cho anh nồi cơm", "...mua giúp mình đôi giày")
+# sharing a sentence with a social nicety ("cảm ơn nha", "chúc bạn") used to lose
+# the ask entirely: the Social/toxicity-style checks below ran unconditionally
+# on the WHOLE message with no notion that a real business request was also
+# present, so "cảm ơn nha tìm cho anh nồi cơm" matched "cảm ơn" and returned
+# SOCIAL before the shopping verb ever got a chance to matter. Deliberately
+# bare verbs/nouns (not compound phrases) - broad recall is safe HERE because
+# it only gates the Social/help-capabilities checks (politeness words that
+# never describe a subject, so they can't legitimately co-occur with a real
+# shopping ask), unlike Out-of-scope markers below (which describe the actual
+# subject, e.g. "tìm việc làm" - gating THOSE on a bare verb would wrongly let
+# "tìm" alone override a specific non-retail phrase; that's a marker-precision
+# problem instead, not a gating one).
+_BUSINESS_SIGNAL_RE = re.compile(
+    r"\b(?:" + "|".join(re.escape(kw) for kw in [
+        "tìm", "tim", "kiếm", "kiem", "mua", "đặt", "dat", "xem",
+        "tư vấn", "tu van", "gợi ý", "goi y", "so sánh", "so sanh",
+        "review", "đánh giá", "danh gia", "còn hàng", "con hang",
+        "còn size", "con size", "còn màu", "con mau",
+        "chi tiết", "chi tiet", "thông tin", "thong tin", "cấu hình", "cau hinh",
+    ]) + r")\b"
+)
+
+def has_business_signal(query: str) -> bool:
+    return bool(_BUSINESS_SIGNAL_RE.search((query or "").lower()))
+
 def classify_faq_topic(query: str) -> str:
     text = query.lower()
     for topic, keywords in FAQ_TOPIC_KEYWORDS.items():
@@ -240,20 +329,31 @@ class IntentClassifier:
         if re.search(r"^(xin chào|chào bạn|chào|hi|hello|alo|hey|chao)\b", text):
             return "GREETING", "greeting"
             
-        # Toxicity check
+        # Toxicity check - always first, unconditional: an insult must never
+        # be swallowed just because the same message also names a product
+        # ("dở quá, tìm hoài không ra" stays toxicity regardless).
         if _TOXICITY_RE.search(text):
             return "CHITCHAT", "toxicity"
-            
+
+        # A real shopping ask sharing the message with a social nicety
+        # ("cảm ơn nha, tìm giúp mình nồi cơm") must win over the nicety -
+        # see _BUSINESS_SIGNAL_RE. Only gates Social/help-capabilities
+        # (politeness words with no subject of their own); Out-of-scope below
+        # stays unconditional on purpose - it describes an actual (non-retail)
+        # subject, and "tìm việc làm" containing the verb "tìm" must NOT be
+        # allowed to override that specific marker.
+        business_signal = has_business_signal(text)
+
         # Social check
-        if _SOCIAL_RE.search(text):
+        if not business_signal and _SOCIAL_RE.search(text):
             return "SOCIAL", "compliment"
-            
+
         # Out-of-scope check
         if _OUT_OF_SCOPE_RE.search(text):
             return "CHITCHAT", "out_of_scope"
-            
+
         # Help capabilities check
-        if any(kw in text for kw in ["làm được gì", "giúp được gì", "tính năng", "chức năng", "capabilities", "lam duoc gi", "giup duoc gi"]):
+        if not business_signal and any(kw in text for kw in ["làm được gì", "giúp được gì", "tính năng", "chức năng", "capabilities", "lam duoc gi", "giup duoc gi"]):
             return "CHITCHAT", "help_capabilities"
 
         # 2. Limit check for Search/Compare/FAQ/Product Info

@@ -39,9 +39,18 @@ class GeminiProvider(LLMProvider):
         if not self.is_available():
             raise RuntimeError("GEMINI_API_KEY is not set. Gemini provider is unavailable.")
 
+        # google-genai's response_schema= path runs the Pydantic class through
+        # its own internal schema conversion, which (as of 2.4.0) raises a
+        # client-side "additionalProperties is only supported in Gemini
+        # Enterprise Agent Platform mode" ValueError for any model with a
+        # public Dict[str, X] field or an `extra=` model_config - an upstream
+        # SDK bug (reported, closed "not planned"). response_json_schema=
+        # takes the already-generated JSON schema directly and skips that
+        # validation gate entirely, so this is immune to it regardless of
+        # what fields the Pydantic model gains later.
         config = types.GenerateContentConfig(
             response_mime_type="application/json",
-            response_schema=response_schema,
+            response_json_schema=response_schema.model_json_schema(),
         )
         if system_instruction:
             config.system_instruction = system_instruction

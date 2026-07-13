@@ -2,12 +2,18 @@ FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    HF_HOME=/app/hf_cache
 
 WORKDIR /app
 
-COPY requirements.txt ./
+COPY requirements.txt .
 RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
+
+# Preload nomic embedding model during Docker build to bake it in
+RUN python -c "from transformers import AutoTokenizer, AutoModel; \
+    AutoTokenizer.from_pretrained('nomic-ai/nomic-embed-text-v1.5', cache_dir='$HF_HOME'); \
+    AutoModel.from_pretrained('nomic-ai/nomic-embed-text-v1.5', cache_dir='$HF_HOME')"
 
 COPY . .
 

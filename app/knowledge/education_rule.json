@@ -1,0 +1,72 @@
+{
+  "computer_buying": {
+    "choices": [
+      {"group": "Học tập - Văn phòng", "desc": "Giá khoảng 10-18 triệu, ưu tiên pin trâu, trọng lượng nhẹ dưới 1.6kg và RAM 8GB-16GB để di chuyển thuận tiện"},
+      {"group": "Lập trình - Code", "desc": "RAM tối thiểu 16GB, ổ cứng SSD từ 512GB chuẩn NVMe, CPU dòng H hiệu năng cao để chạy IDE/Docker mượt mà"},
+      {"group": "Gaming - Chiến game", "desc": "Bắt buộc có Card đồ họa rời (như RTX 3050/4050 trở lên), RAM 16GB và tần số quét màn hình 144Hz"},
+      {"group": "Đồ họa - Dựng phim", "desc": "GPU mạnh mẽ, RAM 16GB-32GB, màn hình có độ chuẩn màu cao đạt 100% sRGB hoặc DCI-P3"}
+    ]
+  },
+  "motion_sickness": {
+    "choices": [
+      {"group": "Thuốc chống say xe dạng uống", "desc": "Hiệu quả nhanh, kéo dài khoảng 4-6 tiếng, phù hợp đi đường dài nhưng có thể gây buồn ngủ nhẹ"},
+      {"group": "Miếng dán chống say xe (sau tai)", "desc": "Tác dụng chậm hơn (cần dán trước khi đi 4 tiếng) nhưng ít gây buồn ngủ, tiện lợi khi di chuyển nhiều ngày"},
+      {"group": "Liệu pháp tự nhiên (Kẹo gừng/Vòng bấm huyệt)", "desc": "An toàn tuyệt đối cho bà bầu và trẻ nhỏ, hiệu quả nhẹ nhàng, phù hợp với người chỉ say xe nhẹ"}
+    ]
+  },
+  "sore_throat": {
+    "choices": [
+      {"group": "Viên ngậm kháng khuẩn", "desc": "Làm dịu cổ họng tức thì, giảm rát nhanh, tiện mang theo và sử dụng mọi lúc"},
+      {"group": "Siro ho thảo dược", "desc": "Chiết xuất thiên nhiên lành tính (lá thường xuân, húng chanh), giúp loãng đờm, giảm ho khan an toàn cho cả gia đình"},
+      {"group": "Nước muối sinh lý sát khuẩn", "desc": "Sử dụng súc họng hàng ngày để diệt khuẩn vùng họng, hỗ trợ phục hồi tự nhiên hiệu quả"}
+    ]
+  },
+  "washing_machine": {
+    "choices": [
+      {"group": "Máy giặt lồng đứng (Cửa trên)", "desc": "Giá thành rẻ, dễ thêm bớt quần áo khi đang giặt, phù hợp với gia đình có không gian đặt máy hẹp"},
+      {"group": "Máy giặt lồng ngang (Cửa trước)", "desc": "Tiết kiệm nước, giặt sạch hơn, ít làm nhăn quần áo và bảo vệ sợi vải tốt hơn"},
+      {"group": "Công nghệ Inverter & Truyền động trực tiếp", "desc": "Giúp tiết kiệm 30-50% điện năng, máy chạy êm ái, giảm rung lắc tối đa khi vắt lớn"}
+    ]
+  },
+  "refrigerator": {
+    "choices": [
+      {"group": "Tủ lạnh Ngăn đá trên (Top Freezer)", "desc": "Thiết kế truyền thống, giá rẻ nhất, dung tích vừa phải cho gia đình nhỏ"},
+      {"group": "Tủ lạnh Ngăn đá dưới (Bottom Freezer)", "desc": "Hạn chế cúi người lấy thực phẩm ngăn mát, hiện đại và tiện lợi cho người lớn tuổi"},
+      {"group": "Tủ lạnh Side-by-Side / Multi Door", "desc": "Dung tích lớn trên 500 lít, có nhiều ngăn chứa riêng biệt tránh lẫn mùi, sang trọng"}
+    ]
+  },
+  "air_conditioner": {
+    "choices": [
+      {"group": "Máy lạnh Inverter (Biến tần)", "desc": "Phù hợp phòng sử dụng trên 8 tiếng liên tục mỗi ngày, giúp tiết kiệm điện năng vượt trội và duy trì nhiệt độ ổn định"},
+      {"group": "Máy lạnh Non-Inverter (Thường)", "desc": "Giá mua ban đầu rẻ hơn, thích hợp cho phòng ít sử dụng (như phòng họp, phòng khách phụ) hoặc nhà thuê ngắn hạn"},
+      {"group": "Cách tính công suất theo diện tích", "desc": "Phòng dưới 15m2 chọn 1.0 HP (9000 BTU); 15m2 - 20m2 chọn 1.5 HP (12000 BTU); 20m2 - 30m2 chọn 2.0 HP (18000 BTU)"}
+    ]
+  },
+  "skincare": {
+    "choices": [
+      {"group": "Chăm sóc Da Dầu (Oily Skin)", "desc": "Ưu tiên chọn sữa rửa mặt dạng Gel dịu nhẹ, chứa salicylic acid (BHA) để thông thoáng lỗ chân lông; kem chống nắng dạng sữa mỏng nhẹ kiềm dầu"},
+      {"group": "Chăm sóc Da Khô (Dry Skin)", "desc": "Ưu tiên sữa rửa mặt dạng kem ít bọt để không mất đi độ ẩm tự nhiên; kem dưỡng chứa Hyaluronic Acid (HA) hoặc Ceramide để khóa ẩm sâu"},
+      {"group": "Chăm sóc Da Nhạy Cảm", "desc": "Tránh các sản phẩm chứa cồn khô, hương liệu nhân tạo và paraben; ưu tiên chiết xuất rau má, hoa cúc lành tính làm dịu da"}
+    ]
+  },
+  "milk_formula": {
+    "choices": [
+      {"group": "Sữa sơ sinh (0 - 6 tháng)", "desc": "Chọn sữa có công thức đạm Whey dễ hấp thu, bổ sung chất xơ FOS/GOS gần giống sữa mẹ để tránh táo bón"},
+      {"group": "Sữa tập đi (6 - 12 tháng)", "desc": "Bổ sung nhiều Canxi, Vitamin D3 hỗ trợ phát triển răng/chiều cao; thêm kháng thể HMO/Lactoferrin tăng cường hệ miễn dịch"},
+      {"group": "Sữa phát triển trí não (Trên 1 tuổi)", "desc": "Ưu tiên hàm lượng DHA, ARA, Omega 3 và Omega 6 cao để tối ưu hóa sự phát triển não bộ và tư duy logic của trẻ"}
+    ]
+  },
+  "real_estate": {
+    "choices": [
+      {"group": "Căn hộ Chung cư", "desc": "Hệ thống an ninh 24/7, có sẵn nhiều tiện ích (siêu thị, hồ bơi), không gian sinh hoạt ấm cúng, thích hợp cho gia đình trẻ"},
+      {"group": "Nhà đất / Nhà riêng", "desc": "Tính riêng tư tuyệt đối, thoải mái sửa chữa xây dựng, không mất phí quản lý hàng tháng, giá trị đất có tính thanh khoản và tăng trưởng cao"}
+    ]
+  },
+  "vehicle_buying": {
+    "choices": [
+      {"group": "Xe đạp điện", "desc": "Giá rẻ nhất, phù hợp di chuyển quãng đường ngắn trong nội thành, không cần đăng ký biển số hay bằng lái"},
+      {"group": "Xe máy điện", "desc": "Tầm di chuyển xa hơn xe đạp điện, phù hợp đi làm/đi học hàng ngày, cần đăng ký biển số"},
+      {"group": "Ô tô điện", "desc": "Phù hợp gia đình và đi xa, chi phí đầu tư ban đầu cao hơn nhưng tiết kiệm nhiên liệu lâu dài, cần có chỗ sạc riêng"}
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "phone_tablet": ["price", "stock", "rating", "sold_count"],
+  "tech":         ["price", "stock", "rating", "sold_count"],
+  "appliance":    ["price", "stock", "rating", "sold_count"],
+  "vehicle":      ["price", "stock", "rating", "sold_count"],
+  "food":         ["price", "stock", "rating", "sold_count"],
+  "fashion":      ["price", "stock", "rating", "sold_count"],
+  "beauty":       ["price", "stock", "rating", "sold_count"],
+  "baby":         ["price", "stock", "rating", "sold_count"],
+  "book":         ["price", "stock", "rating", "sold_count"],
+  "construction_furniture": ["price", "stock", "rating", "sold_count"],
+  "real_estate":            ["price", "stock", "rating", "sold_count"],
+  "service_travel":         ["price", "stock", "rating", "sold_count"],
+  "art_music":              ["price", "stock", "rating", "sold_count"],
+  "industrial_agricultural": ["price", "stock", "rating", "sold_count"],
+  "_default":     ["price", "stock", "rating", "sold_count"]
+}
