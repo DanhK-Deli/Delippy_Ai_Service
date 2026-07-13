@@ -1,5 +1,6 @@
 import json
 import os
+import threading
 from typing import Any, Dict, Optional, List
 from app.core.llm import llm_provider
 from app.models.shopping_context import ShoppingContext
@@ -48,27 +49,30 @@ def log_usage(action_name: str, input_tokens: int, output_tokens: int):
 
 _nomic_tokenizer = None
 _nomic_model = None
+_nomic_lock = threading.Lock()
 
 def _get_nomic_model():
     global _nomic_tokenizer, _nomic_model
-    if _nomic_model is None:
-        import torch
-        from transformers import AutoTokenizer, AutoModel
-        
-        # Check if local model folder exists in workspace
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        local_path = os.path.join(base_dir, "models", "nomic-embed")
-        
-        if os.path.exists(local_path):
-            model_path = local_path
-            print(f"\n[Embedding] Loading nomic-embed from local directory: '{model_path}'")
-        else:
-            model_path = "nomic-ai/nomic-embed-text-v1.5"
-            print(f"\n[Embedding] Local directory not found. Loading nomic-embed from Hugging Face: '{model_path}'")
+    with _nomic_lock:
+        if _nomic_model is None:
+            import torch
+            from transformers import AutoTokenizer, AutoModel
             
-        _nomic_tokenizer = AutoTokenizer.from_pretrained(model_path)
-        _nomic_model = AutoModel.from_pretrained(model_path, trust_remote_code=True)
+            # Check if local model folder exists in workspace
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+            local_path = os.path.join(base_dir, "models", "nomic-embed")
+            
+            if os.path.exists(local_path):
+                model_path = local_path
+                print(f"\n[Embedding] Loading nomic-embed from local directory: '{model_path}'")
+            else:
+                model_path = "nomic-ai/nomic-embed-text-v1.5"
+                print(f"\n[Embedding] Local directory not found. Loading nomic-embed from Hugging Face: '{model_path}'")
+                
+            _nomic_tokenizer = AutoTokenizer.from_pretrained(model_path)
+            _nomic_model = AutoModel.from_pretrained(model_path, trust_remote_code=True)
     return _nomic_tokenizer, _nomic_model
+
 
 def _nomic_embed(text: str, task_type: Optional[str] = None) -> List[float]:
     import torch
