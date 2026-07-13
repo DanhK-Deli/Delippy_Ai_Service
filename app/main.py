@@ -99,6 +99,18 @@ async def startup_event():
         import logging
         logging.getLogger(__name__).warning(f"[Startup] parse_cache TTL index not created: {e}")
 
+    # Eager load Nomic embedding model to eliminate cold-start latency at runtime
+    try:
+        print("\n[Startup] Eager loading local Nomic embedding model to warm up RAM...")
+        import asyncio
+        from app.client.llm_client import _get_nomic_model
+        # Load the model in a background thread to prevent blocking Uvicorn startup
+        asyncio.create_task(asyncio.to_thread(_get_nomic_model))
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"[Startup] Failed to eager load Nomic model: {e}")
+
+
 
 @app.on_event("shutdown")
 async def shutdown_event():

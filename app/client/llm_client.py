@@ -74,6 +74,8 @@ def _get_nomic_model():
     return _nomic_tokenizer, _nomic_model
 
 
+_nomic_inference_lock = threading.Lock()
+
 def _nomic_embed(text: str, task_type: Optional[str] = None) -> List[float]:
     import torch
     import torch.nn.functional as F
@@ -84,18 +86,20 @@ def _nomic_embed(text: str, task_type: Optional[str] = None) -> List[float]:
     prefix = "search_query: " if is_query else "search_document: "
     formatted_text = prefix + text
     
-    encoded_input = tokenizer([formatted_text], padding=True, truncation=True, return_tensors='pt')
-    with torch.no_grad():
-        model_output = model(**encoded_input)
+    with _nomic_inference_lock:
+        encoded_input = tokenizer([formatted_text], padding=True, truncation=True, return_tensors='pt')
+        with torch.no_grad():
+            model_output = model(**encoded_input)
+            
+        token_embeddings = model_output[0]
+        input_mask_expanded = encoded_input['attention_mask'].unsqueeze(-1).expand(token_embeddings.size()).float()
+        sum_embeddings = torch.sum(token_embeddings * input_mask_expanded, 1)
+        sum_mask = torch.clamp(input_mask_expanded.sum(1), min=1e-9)
+        embeddings = sum_embeddings / sum_mask
         
-    token_embeddings = model_output[0]
-    input_mask_expanded = encoded_input['attention_mask'].unsqueeze(-1).expand(token_embeddings.size()).float()
-    sum_embeddings = torch.sum(token_embeddings * input_mask_expanded, 1)
-    sum_mask = torch.clamp(input_mask_expanded.sum(1), min=1e-9)
-    embeddings = sum_embeddings / sum_mask
-    
-    embeddings = F.normalize(embeddings, p=2, dim=1)
-    return embeddings[0].tolist()
+        embeddings = F.normalize(embeddings, p=2, dim=1)
+        return embeddings[0].tolist()
+
 
 
 class LLMClientWrapper:
