@@ -79,3 +79,73 @@ def select_examples(message_vector: Optional[List[float]]) -> str:
         selected += [ex for _, ex in scored[:_DYNAMIC_K]]
 
     return "\n\n".join(_render_example(ex) for ex in selected)
+
+
+_all_embeddings: Optional[List[List[float]]] = None
+
+def _get_all_embeddings() -> List[List[float]]:
+    global _all_embeddings
+    if _all_embeddings is None:
+        examples = _load_examples()
+        _all_embeddings = [llm_client_wrapper.get_embedding(ex["query"]) for ex in examples]
+    return _all_embeddings
+
+def try_embedding_fastpath(
+    message_vector: Optional[List[float]],
+    threshold: float = 0.86,
+    margin: float = 0.1
+) -> Optional[Any]:
+    """Checks if the query vector matches a safe CHITCHAT/SOCIAL example with high
+    confidence, allowing us to bypass the LLM entirely.
+    """
+    if not message_vector:
+        return None
+        
+    examples = _load_examples()
+    embeddings = _get_all_embeddings()
+    
+    # Exclude history-dependent or reference-based examples
+    excluded_ids = {"bare_ok_no_pending_question", "bare_co_confirms_pending_question", "compare_by_position"}
+    
+    scored = []
+    for ex, emb in zip(examples, embeddings):
+        if not emb:
+            continue
+        sim = cosine_similarity(message_vector, emb)
+        scored.append((sim, ex))
+        
+    if not scored:
+        return None
+        
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    best_score, best_ex = scored[0]
+    
+    output = best_ex.get("output") or {}
+    best_intent = output.get("intent")
+    
+    if best_intent not in ("CHITCHAT", "SOCIAL") or best_ex.get("id") in excluded_ids:
+        return None
+        
+    second_score = scored[1][0] if len(scored) > 1 else 0.0
+    
+    if best_score >= threshold and (best_score - second_score) >= margin:
+        print(f"\n[Fast-Path] Query matched '{best_ex.get('query')}' (id: {best_ex.get('id')}) "
+              f"with score {best_score:.4f} (second: {second_score:.4f}). Bypassing AI Parser.")
+              
+        from app.models.shopping_context import ShoppingContext
+        return ShoppingContext(
+            intent=output.get("intent"),
+            sub_intent=output.get("sub_intent"),
+            category=output.get("category"),
+            brand=output.get("brand"),
+            price_min=output.get("price_min"),
+            price_max=output.get("price_max"),
+            purpose=output.get("purpose"),
+            compare_targets=output.get("compare_targets") or [],
+            product=output.get("product"),
+            query_q=output.get("query_q"),
+            expanded_queries=output.get("expanded_queries") or []
+        )
+        
+    return None
+

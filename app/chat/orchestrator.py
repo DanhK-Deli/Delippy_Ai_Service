@@ -1,9 +1,11 @@
 import asyncio
+import time
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 from app.chat.session_manager import session_manager
 from app.understanding.parser import query_parser
-from app.understanding.intent_classifier import is_advisory_query, is_too_vague_for_results, classify_faq_topic, is_no_preference_reply, is_tech_explain_query, is_deep_consult_query
+from app.understanding.intent_classifier import is_advisory_query, classify_faq_topic, is_no_preference_reply, is_tech_explain_query
 from app.understanding.entity_extractor import entity_extractor
 from app.chat.memory_resolver import memory_resolver, _shares_a_word
 from app.chat.lazy import Lazy
@@ -26,6 +28,27 @@ import re
 # Frontend renders this as a "Xem thêm" button; clicking it re-sends the
 # label as a chat message, which the "xem thêm" keyword check below matches.
 SEE_MORE_ACTION = {"action": "see_more", "label": "Xem thêm", "message": "Xem thêm"}
+
+# Per-stage wall-clock timing (see process_message) - a bare print(), not a
+# metrics backend, since this codebase has no logging/metrics infra yet (see
+# response_formatter.py's own "(Tokens: 0, Cost: $0.00)" print convention).
+# Purely for spotting which stage (AI parse? search API? recommendation
+# scorer? formatter LLM call?) actually dominates a slow turn - labels
+# accumulate (+=) rather than overwrite so a label hit more than once in a
+# single turn (e.g. "deep_dive" from either the SEARCH or PRODUCT_INFO
+# branch) still reports its real total instead of only the last call.
+@contextmanager
+def _timed(timings: Dict[str, float], label: str):
+    start = time.perf_counter()
+    try:
+        yield
+    finally:
+        timings[label] = timings.get(label, 0.0) + (time.perf_counter() - start) * 1000
+
+def _log_pipeline_timings(timings: Dict[str, float], t0: float, summary: str) -> None:
+    timings["total"] = (time.perf_counter() - t0) * 1000
+    breakdown = " ".join(f"{k}={v:.0f}ms" for k, v in timings.items())
+    print(f"\n[Orchestrator][Timing] {summary}: {breakdown}")
 
 def _tokens(text: str) -> List[str]:
     """Whole-word tokens, lowercased, splitting on any non-word char so
@@ -367,9 +390,13 @@ def _resolve_compare_suggestion_answer(message: str, memory: Dict[str, Any]) -> 
 
 class Orchestrator:
     async def process_message(self, message: str, session_id: Optional[str] = None) -> dict:
+        timings: Dict[str, float] = {}
+        t0 = time.perf_counter()
+
         # 1. Load Session
-        conversation = await session_manager.load_session(session_id)
-        
+        with _timed(timings, "session_load"):
+            conversation = await session_manager.load_session(session_id)
+
         # 1.5 Check if user requests pagination / "xem thêm"
         is_see_more = any(kw in message.lower() for kw in ["xem thêm", "xem them", "tải thêm", "tai them", "đề xuất thêm", "de xuat them"])
         if is_see_more and "search_results" in conversation.memory:
@@ -397,6 +424,7 @@ class Orchestrator:
                 await session_manager.add_message(conversation, "assistant", answer)
                 await session_manager.save_session(conversation)
 
+                _log_pipeline_timings(timings, t0, "SEARCH_PAGINATION")
                 return {
                     "summary": "SEARCH_PAGINATION",
                     "answer": answer,
@@ -419,6 +447,7 @@ class Orchestrator:
                 await session_manager.add_message(conversation, "user", message)
                 await session_manager.add_message(conversation, "assistant", answer)
                 await session_manager.save_session(conversation)
+                _log_pipeline_timings(timings, t0, "SEARCH_PAGINATION_END")
                 return {
                     "summary": "SEARCH_PAGINATION_END",
                     "answer": answer,
@@ -549,13 +578,14 @@ class Orchestrator:
             print(f"\n[Orchestrator] '{message}' -> resolved to the OTHER compared item: '{other_compared}' (PRODUCT_INFO).")
             context = ShoppingContext(intent="PRODUCT_INFO", query_q=other_compared)
         else:
-            context = await query_parser.parse(
-                message, history_lazy,
-                product_options=product_options,
-                subcategory_options=subcategory_options,
-                subcategory_category_slug=subcategory_category_slug,
-                query_vector_lazy=query_vector_lazy,
-            )
+            with _timed(timings, "parser"):
+                context = await query_parser.parse(
+                    message, history_lazy,
+                    product_options=product_options,
+                    subcategory_options=subcategory_options,
+                    subcategory_category_slug=subcategory_category_slug,
+                    query_vector_lazy=query_vector_lazy,
+                )
         # Snapshot memory's search constraints BEFORE resolve merges this turn
         # into them - needed to tell a genuinely-new constraint from one merely
         # carried forward (see _has_new_search_signal / the advisory branch below).
@@ -572,7 +602,8 @@ class Orchestrator:
         # treat as a shift and memory.clear() away - snapshot/restore across
         # that call so a just-resolved requirement is never silently lost.
         gap_fill_snapshot = dict(conversation.memory.get("shopping_requirement") or {}) if gap_fill_ctx else None
-        context = memory_resolver.resolve(conversation, context, message)
+        with _timed(timings, "memory_resolve"):
+            context = memory_resolver.resolve(conversation, context, message)
         if gap_fill_snapshot is not None:
             conversation.memory["shopping_requirement"] = gap_fill_snapshot
 
@@ -593,18 +624,19 @@ class Orchestrator:
         # generic Q&A bot, not a shopping assistant.
         tech_explain_answer = None
         if context.intent == "SEARCH" and is_tech_explain_query(message):
-            active_category = context.category or conversation.memory.get("category")
-            if active_category:
-                bucket_info = recommendation_builder.resolve_bucket_for(
-                    active_category,
-                    conversation.memory.get("shopping_requirement") or {},
-                    context.purpose or conversation.memory.get("purpose"),
-                )
-                if bucket_info:
-                    _, _, tech_bucket = bucket_info
-                    tech_explain_answer = recommendation_builder.match_spec_education(message, tech_bucket)
-                if not tech_explain_answer:
-                    tech_explain_answer = await llm_client_wrapper.format_tech_explain_response(active_category, message)
+            with _timed(timings, "tech_explain"):
+                active_category = context.category or conversation.memory.get("category")
+                if active_category:
+                    bucket_info = recommendation_builder.resolve_bucket_for(
+                        active_category,
+                        conversation.memory.get("shopping_requirement") or {},
+                        context.purpose or conversation.memory.get("purpose"),
+                    )
+                    if bucket_info:
+                        _, _, tech_bucket = bucket_info
+                        tech_explain_answer = recommendation_builder.match_spec_education(message, tech_bucket)
+                    if not tech_explain_answer:
+                        tech_explain_answer = await llm_client_wrapper.format_tech_explain_response(active_category, message)
 
         # 6. Search Pipeline (zero-result SEARCH retries with expanded queries
         # instead of asking the user to teach the system - see search_engine.search_or_expand)
@@ -654,7 +686,7 @@ class Orchestrator:
                 )
 
             if missing_fields:
-                term = context.query_q or context.category or "sản phẩm này"
+                term = context.query_q or ontology.category_display_name(context.category) or "sản phẩm này"
                 # Market Education (Sprint 3): a "tư vấn X" ask this WIDE OPEN
                 # (nothing answered yet - missing_fields is still the FULL
                 # schema, not just the tail end of an already-started
@@ -686,13 +718,24 @@ class Orchestrator:
                     and missing_fields == ontology.requirement_schema_for(context.category)
                     and not conversation.memory.get("education_shown")
                 ):
-                    education_text = await llm_client_wrapper.format_education_response(term, education["choices"])
+                    # Static domain (all 10 in education_rule.json are
+                    # hand-authored, never change turn to turn) -> render the
+                    # matching hand-written template at $0 instead of paying
+                    # for an LLM call to re-explain the exact same choices
+                    # every time. A domain added later with no template entry
+                    # yet still falls back to the LLM path unchanged.
+                    template = ontology.education_templates.get(domain)
+                    if template:
+                        education_text = template.format(term=term)
+                    else:
+                        with _timed(timings, "education_llm"):
+                            education_text = await llm_client_wrapper.format_education_response(term, education["choices"])
                     if education_text:
                         conversation.memory["education_shown"] = True
                         gap_fill_question = education_text
                         print(f"\n[Orchestrator] Market Education - '{message}' is a wide-open "
                               f"'tư vấn' ask (domain='{domain}'); showing buying-choices explainer "
-                              f"before the first gap-fill question.")
+                              f"before the first gap-fill question ({'template' if template else 'LLM'}).")
 
                 # Bucket Education: the OPPOSITE case from Market Education
                 # above - a SPECIFIC bucket already resolved (e.g. "tư vấn
@@ -787,7 +830,8 @@ class Orchestrator:
                     # when a category resolved, or the out-of-scope/capability
                     # list when it never did - both $0 and more actionable than
                     # "here's something else you looked at before".
-                    evidence = await search_engine.search_or_expand(context)
+                    with _timed(timings, "search_or_expand"):
+                        evidence = await search_engine.search_or_expand(context)
 
                     # Semantic parse cache WRITE: this is the one place we KNOW a
                     # fresh search actually succeeded with real, live-verified
@@ -830,19 +874,20 @@ class Orchestrator:
                 # so conversation.memory["search_results"] below and a later
                 # "số N" both see the SAME sorted order as what's rendered.
                 if context.consultation_level == "expert" and evidence.products:
-                    scored_products = await recommendation_builder.build(
-                        evidence.products, context.category, requirement_snapshot, context.purpose,
-                        price_min=context.price_min, price_max=context.price_max,
-                    )
+                    with _timed(timings, "recommendation_scorer"):
+                        scored_products = await recommendation_builder.build(
+                            evidence.products, context.category, requirement_snapshot, context.purpose,
+                            price_min=context.price_min, price_max=context.price_max,
+                        )
                     if scored_products:
                         evidence = evidence.copy(update={"products": scored_products})
 
                 # Product Deep-Dive on a SEARCH that resolved to EXACTLY one
                 # already-named product (e.g. "tư vấn cho tôi chiếc xe đạp
-                # điện siêu nhân") - the same real ask as PRODUCT_INFO's "tư
-                # vấn kỹ hơn về X" (see is_deep_consult_query above), just
-                # phrased as a fresh search instead of a follow-up on an
-                # already-shown item. Without this, an explicit "expert"-level
+                # điện siêu nhân") - the same real ask as PRODUCT_INFO's own
+                # (unconditional) Deep-Dive below, just phrased as a fresh
+                # search instead of a follow-up on an already-shown item.
+                # Without this, an explicit "expert"-level
                 # ask that happens to narrow to one exact match got the
                 # generic 100-word/1-highlight SEARCH formatting - a bare
                 # "you found exactly what you want" line, no real advice,
@@ -852,9 +897,10 @@ class Orchestrator:
                 # get_detail() has that), so seller_description is omitted.
                 if context.consultation_level == "expert" and len(evidence.products) == 1:
                     only_product = evidence.products[0]
-                    deep_dive_text = await llm_client_wrapper.format_product_deep_dive(
-                        only_product.get("name"), None, only_product.get("price"),
-                    )
+                    with _timed(timings, "deep_dive"):
+                        deep_dive_text = await llm_client_wrapper.format_product_deep_dive(
+                            only_product.get("name"), None, only_product.get("price"),
+                        )
                     if deep_dive_text:
                         evidence = evidence.copy(update={"deep_dive_text": deep_dive_text})
                         print(f"\n[Orchestrator] Product Deep-Dive (SEARCH) - '{message}' asked to be "
@@ -889,7 +935,8 @@ class Orchestrator:
                 conversation.memory["search_results"] = evidence.products or evidence.related_products
                 conversation.memory["search_pointer"] = 5
         elif context.intent == "COMPARE":
-            evidence = await search_engine.compare(context, cached_products=conversation.memory.get("search_results"))
+            with _timed(timings, "compare_api"):
+                evidence = await search_engine.compare(context, cached_products=conversation.memory.get("search_results"))
             # Structured, zero-LLM comparison (winners/value/difference per
             # criterion) - only meaningful with >=2 resolved products; stays
             # None otherwise, and response_formatter falls back to the
@@ -922,28 +969,33 @@ class Orchestrator:
                     "Bạn có thể nói tên hoặc số thứ tự sản phẩm giúp mình nhé."
                 ))
             else:
-                evidence = await search_engine.get_detail(slug)
+                with _timed(timings, "get_detail_api"):
+                    evidence = await search_engine.get_detail(slug)
                 # Track the product just viewed so a follow-up "cái còn lại"
                 # after a comparison knows which of the two to exclude.
                 if evidence.details and evidence.details.get("name"):
                     conversation.memory["last_product_name"] = evidence.details["name"]
 
-                # Product Deep-Dive: "tư vấn kỹ hơn về X" on an already-
-                # resolved product - the seller's own `details` text is
-                # frequently too sparse to actually consult from (just a
-                # hotline number/warranty terms - confirmed live: a real
-                # Yadea S3 listing's whole "description" was two phone
-                # numbers), so draw on the LLM's real market knowledge about
-                # that product/model instead (see llm_client's own honesty
-                # guard - declines rather than invents if it doesn't
-                # recognize the model). response_formatter's DETAIL branch
-                # renders this IN PLACE OF the raw description snippet.
-                if evidence.details and is_deep_consult_query(message):
-                    deep_dive_text = await llm_client_wrapper.format_product_deep_dive(
-                        evidence.details.get("name"),
-                        evidence.details.get("details"),
-                        evidence.details.get("price"),
-                    )
+                # Product Deep-Dive: every PRODUCT_INFO turn now gets a real
+                # market-knowledge analysis, not just an explicit "tư vấn kỹ
+                # hơn về X" ask - the user wants "xem chi tiết X" itself to
+                # always read as a consult, not a bare spec dump. The
+                # seller's own `details` text is frequently too sparse to
+                # consult from anyway (just a hotline number/warranty terms -
+                # confirmed live: a real Yadea S3 listing's whole
+                # "description" was two phone numbers), so this draws on the
+                # LLM's real market knowledge about that product/model
+                # instead (see llm_client's own honesty guard - declines
+                # rather than invents if it doesn't recognize the model).
+                # response_formatter's DETAIL branch renders this IN PLACE OF
+                # the raw description snippet.
+                if evidence.details:
+                    with _timed(timings, "deep_dive"):
+                        deep_dive_text = await llm_client_wrapper.format_product_deep_dive(
+                            evidence.details.get("name"),
+                            evidence.details.get("details"),
+                            evidence.details.get("price"),
+                        )
                     if deep_dive_text:
                         evidence = evidence.copy(update={"deep_dive_text": deep_dive_text})
                         print(f"\n[Orchestrator] Product Deep-Dive - '{message}' asked for a deeper look "
@@ -970,7 +1022,19 @@ class Orchestrator:
         # entirely when this turn already set its own GAP_FILL awaiting above
         # - that one must survive this turn untouched, not get overwritten/
         # cleared here.
-        plan = response_planner.plan(message, evidence, context)
+        #
+        # already_nudged: has the too-vague-to-show nudge already fired once
+        # for THIS category this session? (see response_planner.py's own note
+        # on why this guard exists - without it, a category whose primary
+        # requirement field has no dedicated ShoppingContext slot, e.g. baby's
+        # "age"/gender, can ask the same clarifying question forever).
+        already_nudged = bool(context.category) and conversation.memory.get("vague_nudge_shown_category") == context.category
+        with _timed(timings, "planner"):
+            plan = response_planner.plan(message, evidence, context, already_nudged=already_nudged)
+
+        is_vague_nudge_this_turn = plan.type == "CLARIFICATION" and not evidence.error
+        if is_vague_nudge_this_turn:
+            conversation.memory["vague_nudge_shown_category"] = context.category
 
         if gap_fill_question:
             pass
@@ -987,7 +1051,8 @@ class Orchestrator:
             conversation.memory.pop("awaiting", None)
 
         # 8. Format Response
-        answer = await response_formatter.format(message, history_lazy, evidence, context, plan)
+        with _timed(timings, "formatter"):
+            answer = await response_formatter.format(message, history_lazy, evidence, context, plan)
 
         # 9. Save assistant response with embedding to DB - backgrounded like
         # the user message (step 3): the caller doesn't need this write to
@@ -1007,17 +1072,15 @@ class Orchestrator:
         # is fetched on demand via the see_more follow-up action.
         response_products = evidence.products
         follow_up_actions = []
-        # response_formatter's too-vague-to-show path (is_too_vague_for_results)
-        # asks a clarifying question INSTEAD of listing products for this
-        # exact turn - if the API response still put product cards in `data`,
-        # the frontend would render them right under a text that never
-        # mentioned them, looking like a contradiction. Same guards as that
-        # path (not advisory, products exist) so the two can't drift.
-        skip_products_this_turn = (
-            context.intent == "SEARCH"
-            and not is_advisory_query(message)
-            and is_too_vague_for_results(context)
-        )
+        # response_formatter's too-vague-to-show path asks a clarifying
+        # question INSTEAD of listing products for this exact turn - if the
+        # API response still put product cards in `data`, the frontend would
+        # render them right under a text that never mentioned them, looking
+        # like a contradiction. Reuses the planner's own `is_vague_nudge_this_turn`
+        # (rather than recomputing is_too_vague_for_results independently) so
+        # this can't drift from the planner's actual decision now that that
+        # check has its own extra guards (_no_text_search, already_nudged).
+        skip_products_this_turn = context.intent == "SEARCH" and is_vague_nudge_this_turn
         if context.intent == "SEARCH" and evidence.products and not skip_products_this_turn:
             response_products = evidence.products[:5]
             if len(evidence.products) > 5:
@@ -1025,6 +1088,7 @@ class Orchestrator:
         elif skip_products_this_turn:
             response_products = []
 
+        _log_pipeline_timings(timings, t0, context.intent)
         return {
             "summary": context.intent,
             "answer": answer,

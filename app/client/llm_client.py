@@ -271,15 +271,15 @@ class LLMClientWrapper:
     async def format_product_deep_dive(
         self, product_name: str, seller_description: Optional[str], price: Optional[float],
     ) -> Optional[str]:
-        """Genuine deeper analysis for a "tư vấn kỹ hơn về X" ask on a
-        specific, already-selected product (see
-        intent_classifier.is_deep_consult_query) - the seller's own
-        `details` text is often too sparse to actually consult from (just a
-        hotline number/warranty terms, see the live example that prompted
-        this), so this draws on the LLM's own real market knowledge about
-        that product/model instead, honestly declining if it doesn't
-        recognize the specific model rather than inventing specs. Returns
-        None on any failure so the caller falls back to the plain
+        """Genuine deeper analysis for a specific, already-selected product -
+        every PRODUCT_INFO turn gets this now, not just an explicit "tư vấn
+        kỹ hơn về X" ask (see orchestrator.py's PRODUCT_INFO branch). The
+        seller's own `details` text is often too sparse to actually consult
+        from (just a hotline number/warranty terms, see the live example
+        that prompted this), so this draws on the LLM's own real market
+        knowledge about that product/model instead, honestly declining if it
+        doesn't recognize the specific model rather than inventing specs.
+        Returns None on any failure so the caller falls back to the plain
         description snippet."""
         template = load_prompt_template("product_deep_dive_prompt.txt")
         prompt = template.format(

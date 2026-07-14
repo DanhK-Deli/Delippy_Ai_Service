@@ -153,6 +153,13 @@ class Ontology:
         # domain instead, independent of how the catalog itself is organized.
         self.education_rule: Dict[str, Any] = self._load_json(os.path.join(base_dir, "education_rule.json"))
         self.education_domains: Dict[str, List[str]] = self._load_json(os.path.join(base_dir, "education_domains.json"))
+        # Hand-written, per-domain replacement for education_prompt.txt's LLM
+        # call - education_rule.json's choices are 100% static (10 fixed
+        # domains, hand-authored groups/descriptions), so the explainer text
+        # never actually varies turn to turn except for {term}. Keyed by the
+        # same domain string as education_rule_for(); a domain with no entry
+        # here falls back to the LLM call (see llm_client.format_education_response).
+        self.education_templates: Dict[str, str] = self._load_json(os.path.join(base_dir, "education_templates.json"))
         self.faq_answers: Dict[str, str] = self._load_json(os.path.join(base_dir, "faq_answers.json"))
         # Keyed by sub_intent (see ShoppingContext.sub_intent):
         # "greeting"/"compliment"/"no_intent"/"out_of_scope"/"toxicity"/
@@ -182,6 +189,12 @@ class Ontology:
         self.pagination_intros: List[str] = self._load_json(os.path.join(base_dir, "pagination_intros.json"))
         self.pagination_outros: List[str] = self._load_json(os.path.join(base_dir, "pagination_outros.json"))
         self.pagination_end_responses: List[str] = self._load_json(os.path.join(base_dir, "pagination_end_responses.json"))
+        # Recommendation Engine (Sprint 2) closing line - the only part of
+        # that turn formatter_prompt.txt's LLM call used to add on top of the
+        # fully-deterministic star ratings/reasons/trade-off block (see
+        # response_formatter.py); templated instead since it only ever
+        # varies by the top product's name.
+        self.recommendation_closings: List[str] = self._load_json(os.path.join(base_dir, "recommendation_closings.json"))
 
     def _load_json(self, path: str) -> Any:
         try:
@@ -326,8 +339,27 @@ class Ontology:
         # and "áo"/"quần"/"giày" resolving. "sách" (weight~2.3, ties 13 ways
         # but all under ONE id) is unaffected either way - single-id ties
         # were never the concern.
+        # A third kind of tie the two checks above don't catch: DIFFERENT
+        # subcategories WITHIN THE SAME top-level category tying on exactly
+        # the same overlap set. This happens because _subcategory_words()
+        # folds the top-level category's own name into every subcategory's
+        # vocabulary (see its own docstring) - so for a category whose
+        # subcategories don't otherwise share distinguishing words, a query
+        # matching only that shared top-level vocabulary ties ALL of them
+        # identically. Confirmed live: "xe đạp điện GIANT I NIKKO" (a real
+        # bicycle) tied "ôtô"/"xe máy"/"xe đạp" (all under category 81) at
+        # the exact same overlap {"xe","đạp"} and score, and the old code
+        # picked "ôtô" purely because it's declared first in categories.json
+        # - confidently mislabeling a bicycle as a car. Same
+        # weight/word-count threshold as the cross-category check: a 2+-word
+        # tie is unambiguous enough to always reject (no legitimate single
+        # compound noun ties this way in practice), a low-weight single word
+        # is genuinely too generic to trust, but a rare, high-weight single
+        # word tie (kept - e.g. "giày" tying its own men's/women's/kids'
+        # sub-flavors) still resolves as before.
         spans_multiple_categories = len({result["id"] for _, result in top}) > 1
-        if spans_multiple_categories:
+        spans_multiple_subcategories = len({result["subcategory"] for _, result in top}) > 1
+        if spans_multiple_categories or spans_multiple_subcategories:
             # 1-word ties additionally need the low-weight check (protects
             # "áo"/"quần"/"giày" - see above). A 2+-word tie across DIFFERENT
             # top-level categories has no equivalent false-positive class to
@@ -344,7 +376,22 @@ class Ontology:
             # the dict, same failure shape as "máy", just with 2 words
             # instead of 1. So reject outright regardless of weight here.
             if best_score[1] >= 2 or best_score[0] < self._MIN_SINGLE_WORD_WEIGHT:
-                return None
+                if spans_multiple_categories:
+                    # Genuinely don't know WHICH top-level category either -
+                    # no signal at all is trustworthy here.
+                    return None
+                # All tied candidates agree on the SAME top-level category -
+                # that part isn't ambiguous, only which specific subcategory
+                # is. Discarding category_id along with the subcategory guess
+                # was a real regression (confirmed live: "bất động sản" ties
+                # 4-ways across its own subcategories - "dự án bất động sản
+                # lớn", "sàn bất động sản"... - which used to at least
+                # resolve category_id=82 via first-in-dict order; returning
+                # None here lost that correct, unambiguous id too, on top of
+                # the subcategory guess this check is actually meant to
+                # refuse). Degrade to a category-only match instead - same
+                # shape find_category() step 1 already returns.
+                return {"id": top[0][1]["id"], "slug": top[0][1]["slug"], "level": 1, "subcategory": None}
         return top[0][1]
 
     def is_generic_word(self, word: str) -> bool:
@@ -373,6 +420,117 @@ class Ontology:
         exactly how a laptop/monitor used to leak into a "máy in" search."""
         result = self._score_subcategories(self._category_query_words(product_name.lower()))
         return result["subcategory"] if result else None
+
+    def query_restates_subcategory(self, query_q: Optional[str], subcategory: Optional[str]) -> bool:
+        """True when query_q, resolved on its own via find_category(), lands
+        on the EXACT SAME subcategory already known (`subcategory`) - i.e.
+        query_q is just a restatement of the category/subcategory itself
+        ("ô tô"/"ôtô" for the "ôtô" subcategory), not a more specific
+        distinguishing term (a brand, model, or spec word). Shared by two
+        callers that both need this same fact for different reasons:
+        - search_engine.py: prefer a category/subcategory BROWSE
+          (/products, subcategory_id filter) over a keyword search
+          (/products/search?q=...) in that case - confirmed live, real
+          listings (brand+model titles like "Toyota Camry 2019", "BMW")
+          almost never contain the bare category noun, so the keyword
+          index misses them entirely while a subcategory browse lists them
+          all regardless of title text.
+        - ranker.py: trust category_id/subcategory_id scoping over
+          requiring a literal keyword hit in the product's own name, for
+          the same reason.
+        False whenever query_q carries anything beyond the bare category
+        restatement (a brand, a different/no subcategory) - those cases are
+        real distinguishing signal and must go through the normal keyword
+        path unchanged.
+
+        Normalizes query_q the same way query_normalizer.normalize() does
+        (per-word alias/synonym substitution) before resolving it - on the
+        AI-parser path, query_q is Gemini's own free-text guess and can be
+        an unaccented ASCII spelling ("oto") that never went through that
+        normalization (only the deterministic parser's own pipeline does),
+        so find_category() would otherwise never recognize it as the same
+        concept as its accented catalog counterpart ("ôtô").
+
+        Resolving to the same subcategory is NOT sufficient on its own: the
+        IDF scorer in find_category() simply ignores any word it doesn't
+        recognize (a brand like "toyota" contributes nothing to the score
+        either way), so "ôtô toyota" would "restate" the "ôtô" subcategory
+        here too even though "toyota" is a real, meaningful distinguisher a
+        keyword search COULD act on - browsing would silently drop it
+        (confirmed live: "tìm oto toyota" returned BMW/Mazda6 alongside the
+        real Toyota once browse ignored the brand word entirely). Also
+        requires every meaningful word in query_q to already be part of the
+        subcategory's own vocabulary (its name + top-level category name +
+        synonyms) - nothing left over."""
+        if not subcategory or not query_q:
+            return False
+        normalized_q = " ".join(self.normalize_term(w) for w in query_q.lower().split())
+        cat_info = self.find_category(normalized_q)
+        if not cat_info or cat_info.get("subcategory") != subcategory:
+            return False
+        query_words = self._category_query_words(normalized_q)
+        for cat_name, cat_data in self.categories.items():
+            if cat_data.get("id") != cat_info["id"]:
+                continue
+            return query_words.issubset(self._subcategory_words(cat_name, subcategory))
+        return False
+
+    def strip_category_noun(self, query_q: Optional[str], subcategory: Optional[str]) -> str:
+        """Removes any word from query_q that's already part of
+        `subcategory`'s own vocabulary (its name + top-level category name +
+        synonyms) - generic set-difference, e.g. "ôtô toyota" -> "toyota",
+        "ôtô honda" -> "honda", equally for ANY leftover word, not a specific
+        brand. /products/search's own AND-token match requires EVERY word in
+        `q` to appear in the product's title - confirmed live, this backend
+        genuinely returns 0 for q="ôtô toyota" but 1 real match for
+        q="toyota" alone, because "ôtô" (the bare category noun) almost
+        never appears literally in a real brand+model title. Leaving it in
+        the query silently defeats the search for whatever real
+        distinguishing term (brand, model...) is left over. Returns query_q
+        unchanged if subcategory/category can't be resolved, or if stripping
+        would remove EVERYTHING (that all-restated case belongs to
+        query_restates_subcategory()'s browse path instead, not here)."""
+        if not subcategory or not query_q:
+            return query_q or ""
+        cat_info = self.find_category(query_q)
+        if not cat_info:
+            return query_q
+        sub_words = None
+        for cat_name, cat_data in self.categories.items():
+            if cat_data.get("id") == cat_info["id"]:
+                sub_words = self._subcategory_words(cat_name, subcategory)
+                break
+        if not sub_words:
+            return query_q
+        kept = [w for w in query_q.split() if w.lower() not in sub_words]
+        return " ".join(kept) if kept else query_q
+
+    def product_has_category_signal(self, product_name: str, category_id: int) -> bool:
+        """True iff product_name shares ANY vocabulary overlap with ANY
+        subcategory under `category_id` - even if _score_subcategories
+        couldn't confidently resolve to ONE of them (an ambiguous tie among
+        that category's own sibling subcategories - see the same-category
+        tie rejection in _score_subcategories()). Distinguishes the two
+        different reasons best_subcategory_for_product() can return None:
+        genuinely NO keyword signal at all (a foreign brand/model name like
+        "Toyota Camry 2019" - safe to trust category_id filtering alone) vs.
+        a real signal that's just ambiguous WITHIN this category's own
+        subcategory family (a bicycle matching generic words shared with
+        car/motorbike subcategories under the same parent - should NOT get
+        the same free pass, since it might belong to a genuinely different
+        sibling subcategory the tie couldn't distinguish). Used by ranker.py
+        right where that distinction actually matters, instead of collapsing
+        both into an equally-permissive bare None."""
+        words = self._category_query_words(product_name.lower())
+        if not words:
+            return False
+        for cat_name, cat_data in self.categories.items():
+            if cat_data.get("id") != category_id:
+                continue
+            for sub_name in cat_data.get("subcategories", {}).keys():
+                if words & self._subcategory_words(cat_name, sub_name):
+                    return True
+        return False
 
     def find_category(self, text: str) -> Optional[Dict[str, Any]]:
         text_lower = text.lower()
@@ -546,6 +704,28 @@ class Ontology:
         if not domain or domain not in rules:
             return None
         return rules[domain]
+
+    def category_display_name(self, category: Optional[str]) -> Optional[str]:
+        """Human-readable Vietnamese category name for `category`, whether
+        it's already a slug (deterministic parser path - see
+        entity_extractor.py's entities["category"] = cat_info["slug"]) or
+        free text (AI parser path). Anywhere a category is the last-resort
+        fallback for a user-facing {term} (clarifying questions, Market
+        Education), reading context.category directly risks leaking a raw
+        slug straight into the reply - confirmed live: "Bạn dùng
+        suc-khoe-sac-dep cho loại da..." on the deterministic parser path,
+        where category is never anything BUT a slug. Falls back to the input
+        unchanged if it doesn't resolve to a known category at all (already
+        whatever text the AI parser guessed, safe to show as-is)."""
+        if not category:
+            return None
+        cat_info = self.find_category(category)
+        if not cat_info:
+            return category
+        for cat_name, cat_data in self.categories.items():
+            if cat_data.get("id") == cat_info["id"]:
+                return cat_name
+        return category
 
     def clarifying_questions_for_field(self, category: Optional[str], field: str) -> List[str]:
         """Question templates for ONE specific requirement attribute (e.g.

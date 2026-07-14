@@ -1,0 +1,14 @@
+{
+  "gaming": ["rtx", "gtx", "radeon rx", "ryzen 7", "ryzen 9", "core i7", "core i9", "144hz", "165hz", "tản nhiệt"],
+  "văn phòng": ["core i3", "core i5", "8gb ram", "4gb ram", "mỏng nhẹ", "pin lâu"],
+  "đồ họa": ["rtx", "quadro", "core i7", "core i9", "32gb ram", "màn hình 4k"],
+  "học tập": ["core i3", "core i5", "8gb ram", "mỏng nhẹ"],
+  "pin trâu": ["mah", "5000mah", "6000mah", "5000 mah", "6000 mah", "sạc nhanh", "pin lớn", "pin khủng"],
+  "chụp ảnh đẹp": ["camera", "mp", "zoom", "chống rung", "ống kính"],
+  "tiết kiệm điện": ["inverter", "tiết kiệm điện"],
+  "tiết kiệm nước": ["tiết kiệm nước", "eco"],
+  "mỏng nhẹ": ["mỏng", "nhẹ", "siêu mỏng"],
+  "chống nước": ["chống nước", "ip67", "ip68", "waterproof"],
+  "sạc nhanh": ["sạc nhanh", "fast charge", "quick charge", "pd"],
+  "màn hình lớn": ["inch", "màn hình lớn"]
+}

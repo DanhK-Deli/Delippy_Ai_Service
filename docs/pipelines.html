@@ -1,0 +1,443 @@
+<title>Delippy — Token &amp; Timing Pipelines</title>
+<style>
+  @font-face {
+    font-family: "UISans";
+    src: local("Segoe UI");
+  }
+
+  :root {
+    --ink: #14181f;
+    --paper: #f7f6f2;
+    --panel: #ffffff;
+    --line: #e2ded5;
+    --muted: #6b6357;
+    --cost: #b5590a;
+    --cost-bg: #fdf1e2;
+    --cost-bg-2: #fbe4c4;
+    --free: #0d7a5f;
+    --free-bg: #e6f4ef;
+    --free-bg-2: #cdeadd;
+    --time: #4338ca;
+    --time-bg: #eceafc;
+    --code-bg: #efece3;
+    --shadow: 0 1px 2px rgba(20,24,31,0.04), 0 8px 24px rgba(20,24,31,0.06);
+  }
+
+  :root[data-theme="dark"] {
+    --ink: #eae6da;
+    --paper: #14161c;
+    --panel: #1b1e26;
+    --line: #2b2f3a;
+    --muted: #9a9587;
+    --cost: #eea25a;
+    --cost-bg: #3a2a15;
+    --cost-bg-2: #4a3419;
+    --free: #4fd3ab;
+    --free-bg: #12362d;
+    --free-bg-2: #164539;
+    --time: #a5b4fc;
+    --time-bg: #23234a;
+    --code-bg: #20232b;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 30px rgba(0,0,0,0.35);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink: #eae6da;
+      --paper: #14161c;
+      --panel: #1b1e26;
+      --line: #2b2f3a;
+      --muted: #9a9587;
+      --cost: #eea25a;
+      --cost-bg: #3a2a15;
+      --cost-bg-2: #4a3419;
+      --free: #4fd3ab;
+      --free-bg: #12362d;
+      --free-bg-2: #164539;
+      --time: #a5b4fc;
+      --time-bg: #23234a;
+      --code-bg: #20232b;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 30px rgba(0,0,0,0.35);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: ui-sans-serif, "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+  }
+
+  ::selection { background: var(--time-bg); }
+
+  .wrap {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 3.5rem 1.5rem 6rem;
+  }
+
+  .eyebrow {
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 0.9rem;
+  }
+
+  h1 {
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+    font-size: clamp(1.5rem, 3.4vw, 2.15rem);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0 0 0.6rem;
+    text-wrap: balance;
+  }
+
+  .lede {
+    max-width: 62ch;
+    color: var(--muted);
+    font-size: 1.02rem;
+    margin: 0 0 2.6rem;
+  }
+
+  .lede code { color: var(--ink); }
+
+  section.pipeline { margin-top: 3.6rem; }
+
+  .pipeline-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 0.9rem;
+    margin-bottom: 1.4rem;
+  }
+
+  .pipeline-head h2 {
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+  }
+
+  .pipeline-head h2 .num {
+    color: var(--muted);
+    font-weight: 500;
+  }
+
+  .pipeline-head p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.92rem;
+    max-width: 40ch;
+  }
+
+  .legend {
+    display: flex;
+    gap: 1.1rem;
+    flex-wrap: wrap;
+    margin: 1.1rem 0 1.6rem;
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+    font-size: 0.78rem;
+  }
+
+  .legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: var(--muted);
+  }
+
+  .swatch {
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 2px;
+    flex: none;
+  }
+
+  .swatch.cost { background: var(--cost); }
+  .swatch.free { background: var(--free); }
+  .swatch.time { background: var(--time); }
+
+  .diagram {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    padding: 1.4rem 1.2rem 0.6rem;
+    overflow-x: auto;
+  }
+
+  .diagram pre.mermaid {
+    margin: 0;
+    min-width: 640px;
+  }
+
+  .callsites {
+    margin-top: 1.4rem;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--panel);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.86rem;
+  }
+
+  thead th {
+    text-align: left;
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 0.65rem 0.9rem;
+    border-bottom: 1px solid var(--line);
+    background: var(--code-bg);
+  }
+
+  tbody td {
+    padding: 0.62rem 0.9rem;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+
+  tbody tr:hover { background: var(--code-bg); }
+
+  td.loc {
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+    font-size: 0.78rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  td.cond { color: var(--muted); }
+
+  .pill {
+    display: inline-block;
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.03em;
+    padding: 0.14rem 0.5rem;
+    border-radius: 99px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .pill.cost { background: var(--cost-bg); color: var(--cost); }
+  .pill.free { background: var(--free-bg); color: var(--free); }
+  .pill.hot { background: var(--time-bg); color: var(--time); }
+
+  .note {
+    margin-top: 1.5rem;
+    padding: 0.9rem 1.1rem;
+    border-left: 3px solid var(--time);
+    background: var(--time-bg);
+    border-radius: 0 8px 8px 0;
+    font-size: 0.88rem;
+    color: var(--ink);
+  }
+
+  .note b { font-family: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace; }
+
+  footer {
+    margin-top: 4rem;
+    padding-top: 1.4rem;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 0.8rem;
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+  }
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">app/chat/orchestrator.py · process_message()</p>
+  <h1>Hai luồng pipeline: token &amp; thời gian</h1>
+  <p class="lede">
+    Vẽ lại từ code thật (không suy đoán) — mỗi node LLM đều kèm <code>file:line</code> và điều kiện kích hoạt chính xác.
+    Luồng 1 trả lời "chỗ nào tốn token", luồng 2 trả lời "chỗ nào tốn thời gian" (khớp với log <code>[Orchestrator][Timing]</code> đã thêm trước đó).
+  </p>
+
+  <section class="pipeline">
+    <div class="pipeline-head">
+      <h2><span class="num">01</span> Luồng token / chi phí</h2>
+      <p>Node cam = có gọi Gemini (tốn token). Node xanh = deterministic, $0.</p>
+    </div>
+
+    <div class="legend">
+      <span><span class="swatch cost"></span> Gọi LLM (tốn token)</span>
+      <span><span class="swatch free"></span> Deterministic ($0)</span>
+    </div>
+
+    <div class="diagram">
+<pre class="mermaid">
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#ffffff','primaryBorderColor':'#b5590a','primaryTextColor':'#14181f','lineColor':'#8a8272','fontFamily':'ui-monospace, Consolas, monospace','fontSize':'13px'}}}%%
+graph TD
+  MSG(["Tin nhắn user"]) --> PRE{"Pre-check xác định<br/>gap-fill / compare-suggestion / ordinal"}
+  PRE -->|resolved| CTX["Context đã có - $0"]
+  PRE -->|chưa| RULES{"intent_classifier<br/>regex xác định"}
+  RULES -->|match| CTX
+  RULES -->|không match| PCACHE{"Semantic parse<br/>cache hit?"}
+  PCACHE -->|hit| CTX
+  PCACHE -->|miss| PARSER["Gemini · parse_query<br/>parser.py:295"]:::cost
+  PARSER --> CTX
+
+  CTX --> INTENT{"context.intent"}
+
+  INTENT -->|SEARCH| TECH{"is_tech_explain_query?"}
+  TECH -->|có, thiếu spec local| TECHLLM["Gemini · format_tech_explain_response<br/>orchestrator.py:639"]:::cost
+  TECH -->|không| GAP{"Consultation Flow:<br/>expert + thiếu field?"}
+  GAP -->|hỏi mở, chưa có template| EDULLM["Gemini · format_education_response<br/>orchestrator.py:732"]:::cost
+  GAP -->|có template / đã đủ field| SOE["search_or_expand - $0*"]:::free
+  EDULLM --> SOE
+  TECHLLM --> PLANN
+  SOE --> SCOREGATE{"expert + có products?"}
+  SCOREGATE -->|long-tail, không guide_rule| AISCORE["Gemini · score_products_ai<br/>recommendation_builder.py:125"]:::cost
+  SCOREGATE -->|category lõi có rule| TIERA["Tier A rule-based scoring - $0"]:::free
+  SCOREGATE -->|không phải expert| PLANN
+  AISCORE --> DD1GATE{"expert + đúng 1 product?"}
+  TIERA --> DD1GATE
+  DD1GATE -->|có| DEEPDIVE1["Gemini · format_product_deep_dive<br/>orchestrator.py:901"]:::cost
+  DD1GATE -->|không| PLANN
+  DEEPDIVE1 --> PLANN
+
+  INTENT -->|COMPARE| CMPAPI["compare_api + compare_builder - $0"]:::free
+  CMPAPI --> CMPGATE{"≥2 sản phẩm resolve<br/>thành bảng?"}
+  CMPGATE -->|có| CMPLLM["Gemini · format_comparison_analysis<br/>response_formatter.py:372"]:::cost
+  CMPGATE -->|không| GENERIC
+  CMPLLM --> PLANN
+
+  INTENT -->|PRODUCT_INFO| GETDETAIL["get_detail_api - $0"]:::free
+  GETDETAIL --> DEEPDIVE2["Gemini · format_product_deep_dive<br/>LUÔN LUÔN chạy<br/>orchestrator.py:994"]:::cost
+  DEEPDIVE2 --> PLANN
+
+  INTENT -->|FAQ| FAQ["faq_answers.json lookup - $0"]:::free
+  FAQ --> PLANN
+
+  PLANN["response_planner - $0"]:::free --> FMT{"Formatter branch"}
+  FMT -->|"GREETING / SOCIAL / CHITCHAT /<br/>DETAIL / CLARIFICATION /<br/>SEARCH_RESULT / recommendation block"| DETFMT["Render deterministic - $0"]:::free
+  FMT -->|ZERO_RESULT| ZEROLLM["Gemini · format_zero_result_response<br/>response_formatter.py:311"]:::cost
+  FMT -->|"CONSULT / FOLLOWUP /<br/>FAQ text / compare chưa có bảng"| GENERIC["Gemini · format_response (catch-all)<br/>response_formatter.py:532"]:::cost
+
+  DETFMT --> SAVE["background: get_embedding lưu tin nhắn<br/>thường $0 (Nomic local model)<br/>orchestrator.py:1050"]:::free
+  ZEROLLM --> SAVE
+  GENERIC --> SAVE
+
+  classDef cost fill:#fdf1e2,stroke:#b5590a,stroke-width:1.6px,color:#7a3d05;
+  classDef free fill:#e6f4ef,stroke:#0d7a5f,stroke-width:1.3px,color:#0d5c47;
+</pre>
+    </div>
+
+    <div class="note">
+      <b>*</b> <code>search_or_expand</code> tự nó $0, nhưng bên trong có thể trigger embedding (thường free — model Nomic chạy local trong container, chỉ fallback sang Gemini embed khi <code>AI_PROVIDER</code> khác gemini và local model lỗi) và <code>query_expander.expand()</code> (Gemini) — nhưng field này chỉ chạy khi <code>RETRIEVAL_MODE=legacy</code>, mặc định đang là <code>hybrid</code> nên coi như tắt.
+    </div>
+
+    <div class="callsites">
+      <table>
+        <thead>
+          <tr><th>Gọi LLM</th><th>Vị trí</th><th>Điều kiện kích hoạt</th><th>Tần suất</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>parse_query</td><td class="loc">parser.py:295</td><td class="cond">Không rule/ordinal nào khớp, cache miss</td><td><span class="pill cost">Thường xuyên</span></td></tr>
+          <tr><td>format_tech_explain_response</td><td class="loc">orchestrator.py:639</td><td class="cond">"tại sao/vì sao" + không có spec education local</td><td><span class="pill free">Hiếm</span></td></tr>
+          <tr><td>format_education_response</td><td class="loc">orchestrator.py:732</td><td class="cond">Hỏi mở lần đầu + domain chưa có template viết tay</td><td><span class="pill free">Rất hiếm</span></td></tr>
+          <tr><td>score_products_ai (Tier B)</td><td class="loc">recommendation_builder.py:125</td><td class="cond">expert level + category không có guide_rule.json</td><td><span class="pill cost">Có điều kiện</span></td></tr>
+          <tr><td>format_product_deep_dive (SEARCH)</td><td class="loc">orchestrator.py:901</td><td class="cond">expert level + search ra đúng 1 sản phẩm</td><td><span class="pill cost">Có điều kiện</span></td></tr>
+          <tr><td>format_product_deep_dive (PRODUCT_INFO)</td><td class="loc">orchestrator.py:994</td><td class="cond">Bất kỳ slug nào resolve được — không còn điều kiện gì nữa</td><td><span class="pill hot">Luôn luôn</span></td></tr>
+          <tr><td>format_comparison_analysis</td><td class="loc">response_formatter.py:372</td><td class="cond">So sánh ra bảng ≥2 sản phẩm thật</td><td><span class="pill free">Hiếm</span></td></tr>
+          <tr><td>format_zero_result_response</td><td class="loc">response_formatter.py:311</td><td class="cond">plan.type == ZERO_RESULT</td><td><span class="pill free">Hiếm</span></td></tr>
+          <tr><td>format_response (catch-all)</td><td class="loc">response_formatter.py:532</td><td class="cond">CONSULT / FOLLOWUP / FAQ text / compare thiếu bảng</td><td><span class="pill cost">Thường xuyên</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="pipeline">
+    <div class="pipeline-head">
+      <h2><span class="num">02</span> Luồng thời gian</h2>
+      <p>Số ms là ví dụ thật đã quan sát trong log phiên này, không phải hằng số.</p>
+    </div>
+
+    <div class="legend">
+      <span><span class="swatch time"></span> Stage đã có trong <code>_timed(timings, "...")</code></span>
+    </div>
+
+    <div class="diagram">
+<pre class="mermaid">
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#ffffff','primaryBorderColor':'#4338ca','primaryTextColor':'#14181f','lineColor':'#8a8272','fontFamily':'ui-monospace, Consolas, monospace','fontSize':'13px'}}}%%
+graph TD
+  START(["Request vào"]) --> SL["session_load<br/>~40–150ms"]:::t
+  SL --> PC{"Pagination<br/>shortcut?"}
+  PC -->|có| ENDX(["Trả lời sớm"])
+  PC -->|không| PR["parser<br/>~2–75ms (rule/cache)<br/>~4–16s (Gemini fallback)"]:::t
+  PR --> MR["memory_resolve<br/>~0–2ms"]:::t
+  MR --> INT{"intent"}
+
+  INT -->|SEARCH| TE["tech_explain<br/>~0–13s, có điều kiện"]:::t
+  TE --> EDU["education_llm<br/>có điều kiện, hiếm"]:::t
+  EDU --> SOE["search_or_expand<br/>~40ms cache hit<br/>~600–9000ms gọi API thật"]:::t
+  SOE --> RS["recommendation_scorer<br/>~18.2s (quan sát thật)"]:::t
+  RS --> DD["deep_dive (SEARCH)<br/>~25s (quan sát thật)"]:::t
+
+  INT -->|COMPARE| CA["compare_api<br/>~1.2s (quan sát thật)"]:::t
+
+  INT -->|PRODUCT_INFO| GD["get_detail_api"]:::t
+  GD --> DD2["deep_dive (PRODUCT_INFO)<br/>~20–25s — LUÔN chạy giờ"]:::t
+
+  INT -->|FAQ| FQ["lookup, ~0ms"]:::t
+
+  DD --> PLAN["planner<br/>~0–5ms"]:::t
+  CA --> PLAN
+  DD2 --> PLAN
+  FQ --> PLAN
+  PLAN --> FMT["formatter<br/>~0ms (deterministic)<br/>~4–14s (LLM fallback)"]:::t
+  FMT --> DONE(["Trả lời ra"])
+
+  classDef t fill:#eceafc,stroke:#4338ca,stroke-width:1.4px,color:#302a7a;
+</pre>
+    </div>
+
+    <div class="note">
+      <b>Nhóm loại trừ lẫn nhau:</b> chỉ 1 trong nhánh SEARCH / COMPARE / PRODUCT_INFO / FAQ chạy mỗi turn (theo <code>context.intent</code>). Trong SEARCH, nếu <b>tech_explain</b> trả lời được thì <b>toàn bộ phần còn lại (education_llm → deep_dive)</b> bị bỏ qua luôn. <b>deep_dive</b> ở SEARCH và PRODUCT_INFO dùng chung 1 label timing nhưng không bao giờ chạy cùng lúc.
+    </div>
+
+    <div class="callsites">
+      <table>
+        <thead>
+          <tr><th>Stage</th><th>Vị trí</th><th>Luôn chạy?</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>session_load</td><td class="loc">orchestrator.py:397</td><td><span class="pill hot">Luôn</span></td></tr>
+          <tr><td>parser</td><td class="loc">orchestrator.py:581</td><td><span class="pill free">Có điều kiện</span></td></tr>
+          <tr><td>memory_resolve</td><td class="loc">orchestrator.py:605</td><td><span class="pill hot">Luôn</span></td></tr>
+          <tr><td>tech_explain</td><td class="loc">orchestrator.py:627</td><td><span class="pill free">Có điều kiện</span></td></tr>
+          <tr><td>education_llm</td><td class="loc">orchestrator.py:731</td><td><span class="pill free">Có điều kiện</span></td></tr>
+          <tr><td>search_or_expand</td><td class="loc">orchestrator.py:833</td><td><span class="pill free">Có điều kiện</span></td></tr>
+          <tr><td>recommendation_scorer</td><td class="loc">orchestrator.py:877</td><td><span class="pill free">Có điều kiện</span></td></tr>
+          <tr><td>deep_dive (SEARCH)</td><td class="loc">orchestrator.py:900</td><td><span class="pill free">Có điều kiện</span></td></tr>
+          <tr><td>compare_api</td><td class="loc">orchestrator.py:938</td><td><span class="pill free">Chỉ COMPARE</span></td></tr>
+          <tr><td>get_detail_api</td><td class="loc">orchestrator.py:972</td><td><span class="pill free">Chỉ PRODUCT_INFO</span></td></tr>
+          <tr><td>deep_dive (PRODUCT_INFO)</td><td class="loc">orchestrator.py:993</td><td><span class="pill hot">Luôn (nếu resolve được slug)</span></td></tr>
+          <tr><td>planner</td><td class="loc">orchestrator.py:1025</td><td><span class="pill hot">Luôn</span></td></tr>
+          <tr><td>formatter</td><td class="loc">orchestrator.py:1043</td><td><span class="pill hot">Luôn</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>delippy-ai-service · app/chat/orchestrator.py · verified against source, not inferred</footer>
+</div>

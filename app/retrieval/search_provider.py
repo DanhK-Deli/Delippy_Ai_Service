@@ -46,6 +46,15 @@ class SearchProvider:
                 params["subcategory_id"] = subcategory_id
             if price_min is not None:
                 params["price_min"] = price_min
+            elif price_max is not None:
+                # Backend 422s "price_max must be >= price_min" when only a
+                # ceiling is given (confirmed live) - same defaulting
+                # delippy_client.search_products() already does for the
+                # /products/search endpoint, needed here too now that a
+                # price-bounded browse (search_engine's use_browse path) can
+                # reach /products directly instead of always going through
+                # search().
+                params["price_min"] = 0
             if price_max is not None:
                 params["price_max"] = price_max
             res = await delippy_client.get_products(params=params)

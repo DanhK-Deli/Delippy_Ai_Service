@@ -50,6 +50,14 @@ _LIVE_VERIFY_CONCURRENCY = 6
 
 _WEAK_WORDS = {"cây", "trái", "bộ", "đồ", "món", "cái", "con", "chiếc", "bao", "hộp", "túi"}
 
+def _word_matches(word: str, text: str) -> bool:
+    """Word-boundary match, but also accepts `word` immediately followed by
+    a digit (no boundary otherwise, since digits are \\w too) - real listing
+    titles routinely fuse a brand/model straight into a trailing number
+    ("MAZDA6", "RTX4090") with no separator (see ranker.py's own copy of
+    this same fix for the full rationale)."""
+    return bool(re.search(rf"\b{re.escape(word)}(?:\b|(?=\d))", text))
+
 def _has_keyword_overlap(product_name: str, query_q: Optional[str]) -> bool:
     if not query_q:
         return True
@@ -64,7 +72,7 @@ def _has_keyword_overlap(product_name: str, query_q: Optional[str]) -> bool:
         return True
         
     p_name_lower = product_name.lower()
-    matched_words = {w for w in check_words if re.search(rf"\b{re.escape(w)}\b", p_name_lower)}
+    matched_words = {w for w in check_words if _word_matches(w, p_name_lower)}
     
     # Reject matching only one weak word when the query has multiple check words
     if len(check_words) >= 2 and len(matched_words) == 1:
@@ -329,6 +337,27 @@ class SearchEngine:
                 if not intended_subcategory:
                     intended_subcategory = cat_info.get("subcategory")
 
+        # context.category sometimes only resolves to the TOP-LEVEL category
+        # (find_category()'s step 1 - an exact name/slug match, e.g. the AI
+        # parser's own free-text guess landing on "ô tô - xe máy - xe đạp"
+        # verbatim) without ever guessing a subcategory - step 1 always
+        # returns subcategory=None by design, so the fallback above leaves
+        # intended_subcategory empty even though query_q alone can still
+        # resolve one confidently (e.g. "ô tô" -> "ôtô"). Re-check query_q
+        # here, but only trust it when it resolves under the SAME
+        # category_id already established - a different id would mean
+        # query_q points somewhere else entirely, not a refinement of it.
+        if not intended_subcategory and context.query_q:
+            # Normalized the same way query_restates_subcategory() does -
+            # query_q on the AI-parser path is Gemini's own free-text guess
+            # and can be an unaccented ASCII spelling ("oto") that never went
+            # through query_normalizer's alias substitution, so find_category()
+            # would otherwise miss its accented catalog counterpart ("ôtô").
+            normalized_query_q = " ".join(ontology.normalize_term(w) for w in context.query_q.lower().split())
+            query_cat_info = ontology.find_category(normalized_query_q)
+            if query_cat_info and query_cat_info.get("id") == category_id:
+                intended_subcategory = query_cat_info.get("subcategory")
+
         # Brand has no dedicated backend filter param (see delippy_client.py) -
         # ranker.py can only re-rank/filter whatever the backend already
         # returned for `q`, so a brand the backend never saw in the query
@@ -356,25 +385,71 @@ class SearchEngine:
         # show the SAME menu again). The /products LIST endpoint has no q
         # param either, but that's fine here - it's also the only place
         # subcategory_id can actually reach the backend.
+        async def _browse() -> List[Dict[str, Any]]:
+            print(f"  - Browsing category_id={category_id} subcategory_id={subcategory_id} via /products.")
+            return await search_provider.list_products(
+                category_id=category_id, subcategory_id=subcategory_id,
+                price_min=context.price_min, price_max=context.price_max,
+            )
+
+        # This used to PREDICT ahead of time whether query_q was "just a
+        # restatement" of the subcategory (via query_restates_subcategory)
+        # and skip straight to browsing - deliberately reverted after two
+        # separate live failures: (1) "ôtô toyota" needed the redundant noun
+        # stripped, not a binary skip-to-browse; (2) "tủ lạnh" IS the
+        # subcategory's own synonym-list vocabulary too, so the same
+        # predicate wrongly called it a "restatement" and skipped a keyword
+        # search that actually finds 12 real fridges - no vocabulary-based
+        # prediction can reliably tell "a generic noun real titles never
+        # spell out" (ô tô) apart from "a specific noun real titles always
+        # spell out" (tủ lạnh) ahead of time. Try the real thing, keep
+        # falling back, exactly like search_or_expand's zero-result retries.
         if len(effective_q.strip()) >= 2:
             raw_results = await search_provider.search(
-                q=effective_q,
-                category_id=category_id,
-                price_min=context.price_min,
-                price_max=context.price_max
+                q=effective_q, category_id=category_id,
+                price_min=context.price_min, price_max=context.price_max,
             )
-        else:
-            print(f"  - No usable free-text query - browsing category_id={category_id} subcategory_id={subcategory_id} via /products instead of /products/search.")
-            raw_results = await search_provider.list_products(
-                category_id=category_id,
-                subcategory_id=subcategory_id,
-                price_min=context.price_min,
-                price_max=context.price_max
-            )
-        print(f"  - Backend search returned {len(raw_results)} results.")
+            ranked_results = ranker.rank(raw_results, context, intended_subcategory=intended_subcategory)
 
-        # Rank and drop irrelevant matches
-        ranked_results = ranker.rank(raw_results, context, intended_subcategory=intended_subcategory)
+            # /products/search does an AND-token match requiring EVERY word
+            # in q to appear in the title. A bare category noun ("ô tô")
+            # almost never does - real listings are brand+model names - so
+            # any real distinguishing word alongside it ("ô tô toyota")
+            # silently 0-results a genuine match (confirmed live: "toyota"
+            # alone finds it, "ô tô toyota" doesn't). Retry once with that
+            # noun stripped before giving up on text search - cheap (same
+            # endpoint, no LLM), and lets the backend's own relevance-sorted,
+            # paginated search still do the heavy lifting when there IS a
+            # real distinguishing term, instead of always falling all the
+            # way to an unfiltered browse.
+            if not ranked_results and intended_subcategory:
+                stripped_q = ontology.strip_category_noun(effective_q, intended_subcategory)
+                if stripped_q != effective_q:
+                    print(f"  - '{effective_q}' returned nothing relevant - retrying keyword search as '{stripped_q}'.")
+                    raw_results = await search_provider.search(
+                        q=stripped_q, category_id=category_id,
+                        price_min=context.price_min, price_max=context.price_max,
+                    )
+                    ranked_results = ranker.rank(raw_results, context, intended_subcategory=intended_subcategory)
+
+            # Still nothing relevant, but a subcategory is confidently known
+            # - fall back to browsing it directly. A pure keyword search can
+            # silently miss every real listing for a bare/generic term
+            # (confirmed live: "ô tô" is basically never spelled out in a
+            # car's own brand+model title), while /products (subcategory
+            # browse) reliably lists everything actually filed there
+            # regardless of title text - ranker.rank() still applies the
+            # exact same relevance gate over it, so an irrelevant browsed
+            # item (a fuel additive, an unrelated accessory) is filtered
+            # exactly as it would be from a keyword search.
+            if not ranked_results and subcategory_id is not None:
+                raw_results = await _browse()
+                ranked_results = ranker.rank(raw_results, context, intended_subcategory=intended_subcategory)
+        else:
+            raw_results = await _browse()
+            ranked_results = ranker.rank(raw_results, context, intended_subcategory=intended_subcategory)
+
+        print(f"  - Resolved to {len(ranked_results)} relevant result(s) (from {len(raw_results)} raw).")
 
         # Cache results
         await cache_repo.set_cached_search(cache_key, ranked_results, ttl_seconds=86400)

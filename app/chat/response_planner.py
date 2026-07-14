@@ -17,7 +17,7 @@ class ResponsePlanner:
     post-retrieval planner to plan for them.
     """
 
-    def plan(self, query: str, evidence: Evidence, context: ShoppingContext) -> ResponsePlan:
+    def plan(self, query: str, evidence: Evidence, context: ShoppingContext, already_nudged: bool = False) -> ResponsePlan:
         intent = context.intent
         next_action, target, reason = self._next_action_and_target(intent, evidence)
 
@@ -53,7 +53,25 @@ class ResponsePlanner:
                     and context.price_max is None and not context.purpose
                 )
                 clarify_templates = ontology.clarifying_questions_for(context.category)
-                if is_too_vague_for_results(context) and clarify_templates:
+                # Two guards on TOP of is_too_vague_for_results, both there to
+                # stop this nudge from looping forever: (1) `_no_text_search` -
+                # the user just picked a specific subcategory off a menu
+                # (deterministic ordinal/range pick, see parser.py) - that's
+                # already a deliberate narrowing action, asking a generic
+                # clarifying question right after feels redundant. (2)
+                # `already_nudged` - this category's nudge already fired once
+                # this session (see orchestrator.py, keyed on
+                # memory["vague_nudge_shown_category"]). Necessary because
+                # is_too_vague_for_results only ever clears via
+                # brand/price/purpose - a pooled question about an attribute
+                # with NO dedicated ShoppingContext field (age, occasion,
+                # skin_need...) relies on the AI parser guessing it into
+                # `purpose`, which it often won't (e.g. "bé trai" answering a
+                # gender question isn't semantically a "purpose") - without
+                # this guard that reply is silently dropped and the identical
+                # question re-fires every turn, forever. Asking once and then
+                # showing whatever results exist beats an infinite loop.
+                if not context._no_text_search and not already_nudged and is_too_vague_for_results(context) and clarify_templates:
                     return ResponsePlan(type="CLARIFICATION", next_action=next_action, target=target, reason=reason)
 
                 warnings = self._search_result_warnings(evidence)

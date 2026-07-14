@@ -31,13 +31,12 @@ class Evidence(BaseModel):
     # back to the generic LLM comparison prompt; None when fewer than 2
     # products resolved (e.g. targets not found), same LLM path as before.
     comparison_table: Optional[Dict[str, Any]] = None
-    # Set by orchestrator (llm_client.format_product_deep_dive()) for a
-    # PRODUCT_INFO turn that explicitly asked for a deeper look ("tư vấn kỹ
-    # hơn về X" - see intent_classifier.is_deep_consult_query) - the seller's
-    # own `details` text is often too sparse to actually consult from (just
-    # a hotline number/warranty terms), so this holds a genuine analysis
-    # drawn from the LLM's real market knowledge about that product/model
-    # instead. response_formatter's DETAIL branch renders this IN PLACE OF
-    # the raw description snippet when present; None when deep-dive wasn't
-    # requested or the LLM call failed (falls back to the plain snippet).
+    # Set by orchestrator (llm_client.format_product_deep_dive()) for every
+    # PRODUCT_INFO turn - the seller's own `details` text is often too
+    # sparse to actually consult from (just a hotline number/warranty
+    # terms), so this holds a genuine analysis drawn from the LLM's real
+    # market knowledge about that product/model instead. response_formatter's
+    # DETAIL branch renders this IN PLACE OF the raw description snippet
+    # when present; None when the LLM call failed (falls back to the plain
+    # snippet).
     deep_dive_text: Optional[str] = None

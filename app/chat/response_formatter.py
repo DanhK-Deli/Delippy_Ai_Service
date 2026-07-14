@@ -63,6 +63,15 @@ _WARNING_LINES = {
 # Recommendation Engine (Sprint 2) - matches recommendation_builder.py's own
 # 1-5 scale (see _STAR_MAX there).
 _REC_STAR_MAX = 5
+# Below this, recommendation_builder itself judged the candidate a poor fit
+# (its own recommend_reasons say so - e.g. "có thể bị coi là không phù hợp
+# nếu người nhận không có vấn đề xương khớp" for a joint-health supplement
+# offered as a gift, scored 1/5) - showing it inside a confident-looking
+# star list directly contradicts the warning bullets printed right under its
+# own name. Filtered from the DISPLAYED list only; evidence.products/memory
+# are untouched, so the item is still reachable by name (PRODUCT_INFO) even
+# though it's no longer presented as a confident pick.
+_REC_MIN_DISPLAY_SCORE = 2
 
 def _render_warnings(warnings: List[str]) -> str:
     lines = [_WARNING_LINES[w] for w in warnings if w in _WARNING_LINES]
@@ -158,13 +167,13 @@ class ResponseFormatter:
             if colors_str:
                 resp += f"- **Màu sắc**: {colors_str}\n"
             
-            # Product Deep-Dive (see orchestrator.py) - a "tư vấn kỹ hơn"
-            # ask replaces the raw seller description with a genuine
+            # Product Deep-Dive (see orchestrator.py) - every PRODUCT_INFO
+            # turn now replaces the raw seller description with a genuine
             # analysis drawn from the LLM's real market knowledge, since the
             # seller's own text is often too sparse to consult from at all
             # (confirmed live - a real listing's whole description was two
-            # phone numbers). Falls back to the plain snippet unchanged when
-            # no deep-dive was requested/succeeded this turn.
+            # phone numbers). Falls back to the plain snippet unchanged only
+            # when the deep-dive call itself failed this turn.
             if evidence.deep_dive_text:
                 resp += f"\n**Tư vấn chi tiết** (kiến thức thị trường chung, không phải cam kết từ người bán):\n{evidence.deep_dive_text}\n"
             elif d.get("details"):
@@ -202,7 +211,7 @@ class ResponseFormatter:
                 print("\n[Formatter] Skipped LLM Formatting: CLARIFICATION matches upstream error message (Tokens: 0, Cost: $0.00)\n")
                 return evidence.error
             clarify_templates = ontology.clarifying_questions_for(context.category)
-            term = context.query_q or context.category or "sản phẩm này"
+            term = context.query_q or ontology.category_display_name(context.category) or "sản phẩm này"
             question = random.choice(clarify_templates).format(term=term)
             print("\n[Formatter] Skipped LLM Formatting: SEARCH too-vague-to-show matches deterministic clarifying question (Tokens: 0, Cost: $0.00)\n")
             return question
@@ -241,7 +250,7 @@ class ResponseFormatter:
             # results now, but invite narrowing instead of a bland close.
             clarify_templates = ontology.clarifying_questions_for(context.category)
             if plan.is_broad_query and clarify_templates:
-                term = context.query_q or context.category or "sản phẩm này"
+                term = context.query_q or ontology.category_display_name(context.category) or "sản phẩm này"
                 question = random.choice(clarify_templates).format(term=term)
                 resp += f"\n{question}"
             else:
@@ -298,7 +307,7 @@ class ResponseFormatter:
             else:
                 render_context = {"type": "none", "count": 0}
 
-            search_term = context.query_q or context.purpose or context.category or "sản phẩm này"
+            search_term = context.query_q or context.purpose or ontology.category_display_name(context.category) or "sản phẩm này"
             intro = await llm_client_wrapper.format_zero_result_response(search_term, render_context)
 
             # A real category matched but even the expanded query variants
@@ -403,15 +412,40 @@ class ResponseFormatter:
         # before this runs - see its own comment there). Detected purely from
         # evidence's own enriched fields (same pattern as COMPARE checking
         # evidence.comparison_table above), not plan.type, since CONSULT and
-        # FOLLOWUP both fall through to the same LLM path below unchanged.
-        # Rendered here, in FULL, so the LLM call below never needs to
-        # re-list products/specs - it only adds a short closing sentence (see
-        # formatter_prompt.txt's already_rendered_recommendations rule and
-        # the evidence_payload flag set right before that call).
-        recommendation_block = ""
+        # FOLLOWUP both otherwise fall through to the generic LLM path below.
+        # Rendered here, in FULL, including the closing line (templated from
+        # recommendation_closings.json) - the only part of this turn an LLM
+        # ever used to add was 1-2 generic sentences naming the top pick, and
+        # that never varied with anything else in evidence, so there's
+        # nothing left here that needs a real LLM call.
         if evidence.products and evidence.products[0].get("suitability_score") is not None:
+            top5 = evidence.products[:5]
+            # products is already sorted descending by suitability_score (see
+            # recommendation_builder.build()), so if even the top candidate
+            # is below the display threshold, every candidate this turn is.
+            displayable = [p for p in top5 if (p.get("suitability_score") or 0) >= _REC_MIN_DISPLAY_SCORE]
+
+            if not displayable:
+                # Every candidate scored too low to responsibly recommend -
+                # be upfront instead of presenting a confident-looking star
+                # list for options recommendation_builder itself flagged as
+                # poor fits.
+                lines = []
+                for p in top5:
+                    score = p.get("suitability_score") or 0
+                    stars = "⭐" * score + "☆" * (_REC_STAR_MAX - score)
+                    lines.append(f"**{p.get('name')}** - {p.get('price'):,.0f}đ {stars}")
+                resp = (
+                    "Delippy chưa tìm được lựa chọn thật sự phù hợp với nhu cầu bạn nêu - "
+                    "đây là vài gợi ý gần đúng nhất, bạn cân nhắc thêm nhé:\n\n"
+                    + "\n".join(lines) +
+                    "\n\nBạn muốn Delippy tìm thêm lựa chọn khác, hay điều chỉnh lại yêu cầu để tìm chính xác hơn?"
+                )
+                print("\n[Formatter] Recommendation Engine: all candidates below display threshold - honest low-confidence framing rendered (Tokens: 0, Cost: $0.00)\n")
+                return resp
+
             lines = []
-            for p in evidence.products[:5]:
+            for p in displayable:
                 score = p.get("suitability_score") or 0
                 stars = "⭐" * score + "☆" * (_REC_STAR_MAX - score)
                 lines.append(f"**{p.get('name')}** - {p.get('price'):,.0f}đ {stars}")
@@ -422,11 +456,31 @@ class ResponseFormatter:
             # Only ever set on the (now top-ranked) products[0] - see
             # recommendation_builder._build_trade_off() - a genuine
             # complementary-strength note between the top 2 candidates, not
-            # forced when one strictly dominates the other.
+            # forced when one strictly dominates the other. products[0] is
+            # always in `displayable` here (it's the max score, and
+            # displayable is non-empty).
             trade_off = evidence.products[0].get("trade_off_summary")
             if trade_off:
                 recommendation_block += f"\n\n{trade_off}"
-            print("\n[Formatter] Recommendation Engine: deterministic star ratings + reasoning bullets rendered (Tokens: 0, Cost: $0.00)\n")
+
+            # The closing line used to come from a full formatter_prompt.txt
+            # LLM round-trip whose only real job (once already_rendered_
+            # recommendations was set) was 1-2 generic sentences naming the
+            # top pick - it never varied with anything else in evidence.
+            # Templated instead: same output shape, zero extra LLM call.
+            top_name = evidence.products[0].get("name")
+            closing = random.choice(ontology.recommendation_closings).format(name=top_name) \
+                if ontology.recommendation_closings else \
+                f"**{top_name}** là lựa chọn Delippy đề xuất phù hợp nhất. Bạn muốn xem chi tiết sản phẩm nào không?"
+            resp = f"{recommendation_block}\n\n{closing}"
+
+            if intent == "SEARCH":
+                has_out_of_stock = any(int(p.get("stock") or 0) <= 0 for p in displayable)
+                if has_out_of_stock and "hết hàng" not in resp.lower() and "không còn số lượng" not in resp.lower():
+                    resp += "\n\n_Lưu ý: Có một vài sản phẩm hiện đã hết hàng sẵn trong kho._"
+
+            print("\n[Formatter] Recommendation Engine: deterministic star ratings + reasoning bullets + closing rendered (Tokens: 0, Cost: $0.00)\n")
+            return resp
 
         # 4. Fallback to the configured LLM provider for Consultation, Comparison and FAQ Answers
         # evidence.products can hold up to 20 (kept for "xem thêm" pagination) -
@@ -473,14 +527,6 @@ class ResponseFormatter:
         if user_need:
             evidence_payload["user_need"] = user_need
 
-        # Tells the LLM (via formatter_prompt.txt's own rule) that
-        # recommendation_block above already lists every product's name/
-        # price/star rating/reasons - without this flag the LLM has no way
-        # to know that block exists (it's rendered in pure Python, never
-        # part of the prompt itself) and would re-list specs it just saw.
-        if recommendation_block:
-            evidence_payload["already_rendered_recommendations"] = True
-
         evidence_str = json.dumps(evidence_payload, ensure_ascii=False, separators=(",", ":"))
         history_str = await history_lazy.get()
         llm_response = await llm_client_wrapper.format_response(query, history_str, evidence_str)
@@ -491,8 +537,6 @@ class ResponseFormatter:
             if has_out_of_stock and "hết hàng" not in llm_response.lower() and "không còn số lượng" not in llm_response.lower():
                 llm_response += "\n\n_Lưu ý: Có một vài sản phẩm hiện đã hết hàng sẵn trong kho._"
 
-        if recommendation_block:
-            return f"{recommendation_block}\n\n{llm_response}"
         return llm_response
 
 response_formatter = ResponseFormatter()

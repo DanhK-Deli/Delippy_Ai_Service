@@ -42,22 +42,26 @@ class EntityExtractor:
         clean_text = clean_text.replace("ngàn", "k").replace("nghìn", "k")
 
         # Under/less than (dưới, nhỏ hơn, <)
-        under_match = re.search(r"(?:dưới|nhỏ hơn|<|dưói)\s*(\d+(?:\.\d+)?)\s*(tr|k|đ|vnd|đồng)?", clean_text)
+        under_match = re.search(r"(?:dưới|nhỏ hơn|<|dưói)\s*(\d+(?:\.\d+)?)\s*(tr|k|đ|vnd|đồng|tỷ|ty)?", clean_text)
         if under_match:
             value = float(under_match.group(1))
             unit = under_match.group(2)
-            if unit == "tr" or not unit: # default to tr for numbers like "dưới 20"
+            if unit in ("tỷ", "ty"):
+                value *= 1_000_000_000
+            elif unit == "tr" or not unit: # default to tr for numbers like "dưới 20"
                 if value < 1000: value *= 1_000_000
             elif unit == "k":
                 value *= 1000
             entities["price_max"] = int(value)
 
         # Over/more than (trên, lớn hơn, >)
-        over_match = re.search(r"(?:trên|lớn hơn|>|từ)\s*(\d+(?:\.\d+)?)\s*(tr|k|đ|vnd|đồng)?", clean_text)
+        over_match = re.search(r"(?:trên|lớn hơn|>|từ)\s*(\d+(?:\.\d+)?)\s*(tr|k|đ|vnd|đồng|tỷ|ty)?", clean_text)
         if over_match:
             value = float(over_match.group(1))
             unit = over_match.group(2)
-            if unit == "tr" or not unit:
+            if unit in ("tỷ", "ty"):
+                value *= 1_000_000_000
+            elif unit == "tr" or not unit:
                 if value < 1000: value *= 1_000_000
             elif unit == "k":
                 value *= 1000
@@ -74,7 +78,7 @@ class EntityExtractor:
         # 2k/4k") isn't mistaken for a 2.000đ/4.000đ budget - real "k" budgets
         # start much higher, while "tr" is a plausible budget at any size (1tr).
         if entities["price_min"] is None and entities["price_max"] is None:
-            bare_match = re.search(r"\b(\d+(?:\.\d+)?)\s*(tr|k)\b", clean_text)
+            bare_match = re.search(r"\b(\d+(?:\.\d+)?)\s*(tr|k|tỷ|ty)\b", clean_text)
             if bare_match:
                 value = float(bare_match.group(1))
                 unit = bare_match.group(2)
@@ -83,6 +87,8 @@ class EntityExtractor:
                     entities["price_max"] = int(value)
                 elif unit == "k" and value >= 10:
                     entities["price_max"] = int(value * 1000)
+                elif unit in ("tỷ", "ty"):
+                    entities["price_max"] = int(value * 1_000_000_000)
 
         return entities
 

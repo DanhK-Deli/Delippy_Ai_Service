@@ -139,42 +139,6 @@ _TECH_EXPLAIN_RE = re.compile(
 def is_tech_explain_query(message: str) -> bool:
     return bool(_TECH_EXPLAIN_RE.search((message or "").lower()))
 
-# A request for a DEEPER look at a specific, already-selected product (e.g.
-# "tư vấn kỹ hơn về xe máy điện yadea s3") - distinct from is_tech_explain_query
-# (a category-wide "why does X matter" question, gated on SEARCH intent) since
-# this only fires alongside PRODUCT_INFO, where a specific product is already
-# resolved. v0/regex-only, same scope as the rest of this file.
-_DEEP_CONSULT_RE = re.compile(
-    r"kỹ hơn|ky hon|chi tiết hơn|chi tiet hon|tư vấn kỹ|tu van ky|"
-    r"phân tích kỹ|phan tich ky|đánh giá (chi tiết|kỹ)|danh gia (chi tiet|ky)|"
-    r"review (chi tiết|kỹ)|nói rõ hơn|noi ro hon|biết rõ hơn|biet ro hon|"
-    r"sâu hơn|sau hon|tư vấn chuyên sâu|tu van chuyen sau|phân tích chuyên sâu|phan tich chuyen sau",
-    re.IGNORECASE,
-)
-
-# A genuine SUITABILITY question about the already-resolved product ("có ngon
-# không", "xài được cho người già không", "phù hợp cho ai") - as opposed to
-# _DEEP_CONSULT_RE's explicit "give me MORE depth" phrasing, this is simply
-# asking whether/for-whom the product works, which the seller's own sparse
-# `details` text (often just a hotline number - see the Product Deep-Dive
-# docstring below) can't actually answer either. Confirmed live: "nó có ngon
-# và sài được cho người già không nhỉ" about a Yadea S3 listing matched
-# NEITHER this nor the old _DEEP_CONSULT_RE, so it silently got the raw
-# hotline-only description instead of a real answer.
-_PRODUCT_SUITABILITY_RE = re.compile(
-    r"có (?:ngon|tốt|ổn|xịn|bền|ok)\b[^.?!]{0,40}\bkhông|"
-    r"co (?:ngon|tot|on|xin|ben|ok)\b[^.?!]{0,40}\bkhong|"
-    r"(?:dùng|xài|sài|dung|xai|sai) được (?:cho|với|voi)|"
-    r"phù hợp (?:cho|với)|phu hop (?:cho|voi)|"
-    r"hợp (?:với|cho)|hop (?:voi|cho)|"
-    r"dành cho|danh cho",
-    re.IGNORECASE,
-)
-
-def is_deep_consult_query(message: str) -> bool:
-    text = (message or "").lower()
-    return bool(_DEEP_CONSULT_RE.search(text) or _PRODUCT_SUITABILITY_RE.search(text))
-
 def is_too_vague_for_results(context: ShoppingContext) -> bool:
     """True when a SEARCH turn gave no brand/price/purpose AND query_q
     reduces to at most one meaningful word (single-char, non-digit tokens

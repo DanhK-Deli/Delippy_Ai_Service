@@ -45,6 +45,24 @@
     "output": {"intent": "PRODUCT_INFO", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": "laptop-asus-vivobook-abc123", "query_q": null, "expanded_queries": []}
   },
   {
+    "id": "vehicle_daily_use_purpose_reply",
+    "anchor": true,
+    "query": "đi hằng ngày",
+    "context": [
+      "(Conversation History: assistant just asked \"Bạn định đi xe để di chuyển hằng ngày, đi xa hay chở hàng, để Delippy tư vấn đúng nhu cầu hơn?\"; the SEARCH turn before that had category \"ô tô - xe máy - xe đạp\" and query_q \"xe\")"
+    ],
+    "output": {"intent": "SEARCH", "consultation_level": "assist", "category": "ô tô - xe máy - xe đạp", "brand": null, "price_min": null, "price_max": null, "purpose": "đi hằng ngày", "compare_targets": [], "product": null, "query_q": "xe", "expanded_queries": []}
+  },
+  {
+    "id": "skincare_purpose_reply_no_product_noun",
+    "anchor": true,
+    "query": "cho da dầu mụn",
+    "context": [
+      "(Conversation History: assistant just asked \"Bạn cần kem phục vụ cho nhu cầu cụ thể nào để Delippy tư vấn đúng nhất ạ?\"; the SEARCH turn before that had category \"chăm sóc da\" and query_q \"kem da\")"
+    ],
+    "output": {"intent": "SEARCH", "consultation_level": "assist", "category": "chăm sóc da", "brand": null, "price_min": null, "price_max": null, "purpose": "da dầu mụn", "compare_targets": [], "product": null, "query_q": "kem da", "expanded_queries": []}
+  },
+  {
     "id": "compare_by_position",
     "anchor": true,
     "query": "so sánh 2 loại đầu tiên",

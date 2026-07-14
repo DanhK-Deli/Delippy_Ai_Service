@@ -25,11 +25,13 @@ A bare filler word by itself is NOT always SOCIAL/no_intent - check the Conversa
 - If the assistant's last message did NOT ask a question (just gave information, said goodbye, etc.), a bare "ok"/"ừ"/"vâng" IS a content-free acknowledgment -> SOCIAL, sub_intent "no_intent".
 - If the assistant's last message DID ask a question the user could be answering yes to (e.g. "...xem chi tiết sản phẩm X không?", "...so sánh với sản phẩm nào không?", "...tìm ở mục nào không?"), a bare "ok"/"có"/"ừ"/"được" is CONFIRMING that question, not a content-free filler - resolve intent from what was asked: confirming to view a specific product's details -> PRODUCT_INFO with that product; confirming to compare -> COMPARE; confirming to keep browsing/narrow the search -> SEARCH. Never default this case to SOCIAL just because the reply itself is short.
 
+Strict Rules for Replies to a Pending Purpose/Usage Clarifying Question:
+If the assistant's last message asked a purpose/usage/audience-narrowing clarifying question (e.g. "Bạn định đi {{term}} để di chuyển hằng ngày, đi xa hay chở hàng...", "Bạn cần {{term}} phục vụ cho nhu cầu cụ thể nào...") and the current query is a short reply that names ONLY a purpose/usage/audience with no product noun of its own (e.g. "đi hằng ngày", "để đi làm", "cho gia đình"), this is NOT a fresh, incomplete search to be re-asked about - carry forward "category" and "query_q" from the most recent SEARCH turn in the history, and set "purpose" to this reply's content.
+
 Strict Rules for "query_q" and Semantic Modifiers:
 0. A search-trigger verb ("tìm", "mua", "kiếm", "gợi ý", "tư vấn") in the query does NOT by itself make the intent SEARCH. Before assigning SEARCH, check: does what follows the verb name a CONCRETE PRODUCT/CATEGORY that could realistically be sold as a retail item on an e-commerce platform?
    - If it names information/knowledge to learn ("tìm hiểu về X", "X là gì"), a market/financial figure ("giá vàng", "tỷ giá"), a service/task outside retail (đặt vé máy bay, gọi taxi, vay tiền, mua bảo hiểm nhân thọ), or a non-product recommendation (gợi ý phim, gợi ý bài hát, gợi ý địa điểm du lịch) -> classify as CHITCHAT/out_of_scope instead, even though a search-trigger word is present.
    - Only assign SEARCH when the object after the verb is (or can be rephrased as) something with a plausible product listing: a physical good, an apparel/electronics/grocery item, a service actually sold on Delippy, etc.
-   - Example: "tìm hiểu về vitamin C có tốt không" -> CHITCHAT/out_of_scope (asking to learn about a topic, not to buy a product), whereas "tìm vitamin C dạng viên" -> SEARCH, query_q "vitamin C".
    - Example: "giá vàng hôm nay bao nhiêu" -> CHITCHAT/out_of_scope (market price question, not a retail product on the platform).
 
 1. Translate activity/purpose modifiers into database-friendly concrete nouns:
