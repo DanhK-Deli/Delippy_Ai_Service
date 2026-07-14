@@ -86,7 +86,9 @@ class QueryParser:
             if 1 <= lo and hi <= len(subcategory_options):
                 print(f"\n[Parser] Parsing raw query: '{query}'")
                 print(f"  - Deterministic range pick -> subcategories #{lo}-#{hi}, broadening to top-level category")
-                return ShoppingContext(intent="SEARCH", category=subcategory_category_slug, query_q=None)
+                ctx = ShoppingContext(intent="SEARCH", category=subcategory_category_slug, query_q=None)
+                ctx._no_text_search = True
+                return ctx
 
         # 1.5b Ordinal reference to a just-shown list ("phòng số 1", "sản
         # phẩm số 3", a bare "2" answering a numbered menu, or "số 10" picking
@@ -109,12 +111,14 @@ class QueryParser:
                     target = subcategory_options[ordinal - 1]
                     print(f"\n[Parser] Parsing raw query: '{query}'")
                     print(f"  - Deterministic ordinal reference -> subcategory #{ordinal}: '{target.get('name')}'")
-                    return ShoppingContext(
+                    ctx = ShoppingContext(
                         intent="SEARCH",
                         category=subcategory_category_slug,
                         subcategory=target.get("name"),
                         query_q=None,
                     )
+                    ctx._no_text_search = True
+                    return ctx
                 if product_options and 1 <= ordinal <= len(product_options):
                     target = product_options[ordinal - 1]
                     print(f"\n[Parser] Parsing raw query: '{query}'")

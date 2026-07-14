@@ -66,3 +66,14 @@ class ShoppingContext(BaseModel):
     # advisory continuation of the cached context instead of either the
     # Parser's wrong guess or a fresh, contextless search.
     _force_advisory: bool = PrivateAttr(default=False)
+    # Set by parser.py when it deliberately returns query_q=None to mean
+    # "browse by category/subcategory only, no free text" (the zero-result
+    # menu's ordinal subcategory pick, and its range-pick broaden-to-category
+    # shortcut) - as opposed to query_q simply being empty because this turn's
+    # message had no product noun of its own (a bare "dưới 500k" narrowing
+    # reply). memory_resolver.resolve() must NOT backfill the OLD query_q from
+    # memory over this flag, or the deliberate "no text" signal gets silently
+    # replaced by the ORIGINAL (already-failed) search text and the picked
+    # subcategory/category never actually reaches search_engine - see its
+    # query_q backfill.
+    _no_text_search: bool = PrivateAttr(default=False)

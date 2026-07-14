@@ -212,7 +212,7 @@ class MemoryResolver:
         # paper over - see parser.py step 4's skip_semantic_cache).
         if current_context.query_q:
             memory["query_q"] = current_context.query_q
-        else:
+        elif not current_context._no_text_search:
             current_context.query_q = memory.get("query_q")
 
         return current_context
