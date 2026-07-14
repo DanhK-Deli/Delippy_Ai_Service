@@ -9,6 +9,8 @@ WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
 
 # Preload nomic embedding model during Docker build to bake it in
 RUN python -c "from transformers import AutoTokenizer, AutoModel; \
