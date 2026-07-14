@@ -152,8 +152,28 @@ _DEEP_CONSULT_RE = re.compile(
     re.IGNORECASE,
 )
 
+# A genuine SUITABILITY question about the already-resolved product ("có ngon
+# không", "xài được cho người già không", "phù hợp cho ai") - as opposed to
+# _DEEP_CONSULT_RE's explicit "give me MORE depth" phrasing, this is simply
+# asking whether/for-whom the product works, which the seller's own sparse
+# `details` text (often just a hotline number - see the Product Deep-Dive
+# docstring below) can't actually answer either. Confirmed live: "nó có ngon
+# và sài được cho người già không nhỉ" about a Yadea S3 listing matched
+# NEITHER this nor the old _DEEP_CONSULT_RE, so it silently got the raw
+# hotline-only description instead of a real answer.
+_PRODUCT_SUITABILITY_RE = re.compile(
+    r"có (?:ngon|tốt|ổn|xịn|bền|ok)\b[^.?!]{0,40}\bkhông|"
+    r"co (?:ngon|tot|on|xin|ben|ok)\b[^.?!]{0,40}\bkhong|"
+    r"(?:dùng|xài|sài|dung|xai|sai) được (?:cho|với|voi)|"
+    r"phù hợp (?:cho|với)|phu hop (?:cho|voi)|"
+    r"hợp (?:với|cho)|hop (?:voi|cho)|"
+    r"dành cho|danh cho",
+    re.IGNORECASE,
+)
+
 def is_deep_consult_query(message: str) -> bool:
-    return bool(_DEEP_CONSULT_RE.search((message or "").lower()))
+    text = (message or "").lower()
+    return bool(_DEEP_CONSULT_RE.search(text) or _PRODUCT_SUITABILITY_RE.search(text))
 
 def is_too_vague_for_results(context: ShoppingContext) -> bool:
     """True when a SEARCH turn gave no brand/price/purpose AND query_q

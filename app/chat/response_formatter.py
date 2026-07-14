@@ -378,6 +378,25 @@ class ResponseFormatter:
             return resp.rstrip()
 
 
+        # 3.55 Product Deep-Dive on a SEARCH that resolved to exactly one
+        # already-named product (see orchestrator.py) - rendered the same
+        # deterministic way as PRODUCT_INFO's DETAIL branch (name/price header
+        # + the real market-knowledge analysis) instead of handing it to the
+        # generic formatter_prompt.txt LLM call below, which has no rule for
+        # this field and would still cap it to ~100 words/1 highlight - the
+        # exact shallow "here's your exact match" result this was built to
+        # replace.
+        if intent == "SEARCH" and evidence.deep_dive_text and len(evidence.products) == 1:
+            p = evidence.products[0]
+            resp = f"Delippy tìm thấy đúng sản phẩm bạn nhắc đến:\n\n"
+            resp += f"### **{p.get('name')}** - {p.get('price'):,.0f}đ\n"
+            if int(p.get("stock") or 0) <= 0:
+                resp += "_(Sản phẩm hiện tạm hết hàng)_\n"
+            resp += f"\n**Tư vấn chi tiết** (kiến thức thị trường chung, không phải cam kết từ người bán):\n{evidence.deep_dive_text}\n"
+            resp += "\nBạn ưng sản phẩm này chưa, hay muốn Delippy tìm thêm lựa chọn khác?"
+            print("\n[Formatter] Product Deep-Dive (SEARCH): deterministic render, no generic LLM formatter call (Tokens: 0, Cost: $0.00)\n")
+            return resp
+
         # 3.6 Recommendation Engine (Sprint 2) - deterministic star ratings +
         # Vietnamese success/warning bullets from recommendation_builder.py
         # (orchestrator.py already sorted evidence.products by suitability

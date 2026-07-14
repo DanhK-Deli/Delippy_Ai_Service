@@ -11,6 +11,7 @@ from app.database.product_vector_repository import product_vector_repo
 from app.knowledge.ontology import ontology
 from app.understanding.query_expander import query_expander
 from app.understanding.intent_classifier import is_advisory_query
+from app.understanding.entity_extractor import entity_extractor
 from app.client.llm_client import llm_client_wrapper
 from app.core.config import settings
 
@@ -544,7 +545,19 @@ class SearchEngine:
             if cached_hit:
                 detail = await search_provider.get_details(cached_hit["slug"])
             if not detail:
-                search_res = await search_provider.search(q=target)
+                # /products/search does an AND-token match against the raw
+                # query text, so a filler word inside `target` ("của", "là"...)
+                # that never appears in the product's own name/title is
+                # enough to zero out an otherwise-real match - confirmed
+                # live: 'sữa bột của colos glucomi' (the raw compare target,
+                # containing "của") returned 0 results against a catalog
+                # product literally named "Sữa bột Colos Glucomin...",
+                # while the SAME text with "của" stripped matched it fine.
+                # clean_query_keywords is the same stopword strip the plain
+                # SEARCH path already gets - falls back to the raw target if
+                # cleaning empties it out entirely.
+                cleaned_target = entity_extractor.clean_query_keywords(target) or target
+                search_res = await search_provider.search(q=cleaned_target)
                 best_match = _best_match(search_res)
                 if best_match:
                     slug = best_match.get("slug")

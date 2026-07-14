@@ -837,6 +837,29 @@ class Orchestrator:
                     if scored_products:
                         evidence = evidence.copy(update={"products": scored_products})
 
+                # Product Deep-Dive on a SEARCH that resolved to EXACTLY one
+                # already-named product (e.g. "tư vấn cho tôi chiếc xe đạp
+                # điện siêu nhân") - the same real ask as PRODUCT_INFO's "tư
+                # vấn kỹ hơn về X" (see is_deep_consult_query above), just
+                # phrased as a fresh search instead of a follow-up on an
+                # already-shown item. Without this, an explicit "expert"-level
+                # ask that happens to narrow to one exact match got the
+                # generic 100-word/1-highlight SEARCH formatting - a bare
+                # "you found exactly what you want" line, no real advice,
+                # despite the user asking to be advised. Reuses the exact same
+                # market-knowledge call PRODUCT_INFO's Deep-Dive uses; no
+                # `details` text available from a search-result row (only
+                # get_detail() has that), so seller_description is omitted.
+                if context.consultation_level == "expert" and len(evidence.products) == 1:
+                    only_product = evidence.products[0]
+                    deep_dive_text = await llm_client_wrapper.format_product_deep_dive(
+                        only_product.get("name"), None, only_product.get("price"),
+                    )
+                    if deep_dive_text:
+                        evidence = evidence.copy(update={"deep_dive_text": deep_dive_text})
+                        print(f"\n[Orchestrator] Product Deep-Dive (SEARCH) - '{message}' asked to be "
+                              f"advised on the single resolved match '{only_product.get('name')}'.")
+
                 if not evidence.products and not evidence.related_products and context.category:
                     # Genuine miss with a real category resolved - offer that
                     # category's own subcategory menu (see ontology.subcategories_for)

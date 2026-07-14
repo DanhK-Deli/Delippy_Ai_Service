@@ -38,6 +38,19 @@ _COMPARE_ORDINALS_RE = re.compile(
     r"(?:so sánh|so sanh)\s*(?:(?:số|so)\s*)?(\d{1,2})\s*(?:và|va|,|với|voi)\s*(?:(?:số|so)\s*)?(\d{1,2})\b"
 )
 
+# Splits a SHORT free-text compare ("so sánh sữa bột và vớ", "sữa bột khác gì
+# vớ", "sữa bột vs vớ") into its two targets - reuses the exact connector
+# phrases intent_classifier's own COMPARE check already fired on (see
+# classify()'s "so sánh"/"khác gì"/" vs "/" so với " keyword list), so by the
+# time this runs we already know one of them is present. maxsplit=1 so a
+# target that itself contains a second "và" ("sữa và bột và vớ") still only
+# splits once, at the FIRST connector - the two resulting halves are cleaned
+# with clean_query_keywords() same as the rest of the deterministic path (see
+# below), which strips the "so sánh"/"so sanh" lead-in on the left half.
+_COMPARE_TARGET_SPLIT_RE = re.compile(
+    r"\s*\b(?:so với|so voi|khác gì|khac gi|và|va|với|voi|vs)\b\s*"
+)
+
 class QueryParser:
     async def parse(
         self,
@@ -144,6 +157,23 @@ class QueryParser:
         print(f"  - Intent Rule : {intent}")
         print(f"  - Entities    : Brand={entities['brand']}, Category={entities['category']} (ID={entities['category_id']}), PriceMin={entities['price_min']}, PriceMax={entities['price_max']}")
 
+        # A deterministic COMPARE needs its two targets split out - without
+        # this, compare_targets stayed empty (only query_q was ever set here)
+        # and search_engine.compare() iterates `context.compare_targets`, so
+        # it silently did NOTHING (no backend lookup for either side at all)
+        # and fell through to an ungrounded LLM answer. Confirmed live: "so
+        # sánh sữa bột và vớ" ran zero product searches, straight to the
+        # Response Formatter on history alone.
+        compare_targets: List[str] = []
+        if intent == "COMPARE":
+            parts = [entity_extractor.clean_query_keywords(p) for p in _COMPARE_TARGET_SPLIT_RE.split(normalized, maxsplit=1)]
+            compare_targets = [p for p in parts if p]
+            if len(compare_targets) != 2:
+                # Couldn't cleanly resolve exactly two sides (e.g. cleaning
+                # emptied one out) - let the AI parser take a real look
+                # instead of returning a COMPARE with unusable targets.
+                intent = None
+
         if intent is not None:
             cleaned_q = entity_extractor.clean_query_keywords(normalized)
             # Only SEARCH carries a consultation_level - and only "none" vs
@@ -154,7 +184,8 @@ class QueryParser:
             # and it falls through to the AI parser below, which is where
             # "assist" actually gets decided.
             consultation_level = ("expert" if is_advisory_query(query) else "none") if intent == "SEARCH" else None
-            print(f"  - Deterministic Parse Result -> Intent: {intent}, Sub Intent: {sub_intent}, Consultation: {consultation_level}, Core Query q: '{cleaned_q}'")
+            print(f"  - Deterministic Parse Result -> Intent: {intent}, Sub Intent: {sub_intent}, Consultation: {consultation_level}, Core Query q: '{cleaned_q}'"
+                  + (f", Compare Targets: {compare_targets}" if intent == "COMPARE" else ""))
             return ShoppingContext(
                 intent=intent,
                 sub_intent=sub_intent,
@@ -164,7 +195,8 @@ class QueryParser:
                 brand=entities["brand"],
                 price_min=entities["price_min"],
                 price_max=entities["price_max"],
-                query_q=cleaned_q
+                query_q=cleaned_q,
+                compare_targets=compare_targets,
             )
 
         # 4. Semantic parse cache - skip the Gemini parse entirely when a
