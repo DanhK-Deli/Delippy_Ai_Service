@@ -17,9 +17,10 @@ from app.chat.compare_builder import compare_builder
 from app.chat.recommendation_builder import recommendation_builder
 from app.models.shopping_context import ShoppingContext
 from app.models.evidence import Evidence
-from app.client.llm_client import llm_client_wrapper
+from app.client.llm_client import llm_client_wrapper, request_tokens
 from app.database.conversation_repository import conversation_repo
 from app.database.parse_cache_repository import parse_cache_repo
+from app.database.cache_repository import cache_repo
 from app.knowledge.ontology import ontology
 import json
 import random
@@ -392,6 +393,8 @@ class Orchestrator:
     async def process_message(self, message: str, session_id: Optional[str] = None) -> dict:
         timings: Dict[str, float] = {}
         t0 = time.perf_counter()
+        request_tokens.set(0)
+
 
         # 1. Load Session
         with _timed(timings, "session_load"):
@@ -439,7 +442,9 @@ class Orchestrator:
                         "session_id": conversation.session_id,
                         "memory": conversation.memory,
                         "products": next_products
-                    }
+                    },
+                    "response_time_ms": (time.perf_counter() - t0) * 1000,
+                    "tokens_used": request_tokens.get()
                 }
             else:
                 answer = random.choice(ontology.pagination_end_responses) if ontology.pagination_end_responses else \
@@ -462,8 +467,11 @@ class Orchestrator:
                         "session_id": conversation.session_id,
                         "memory": conversation.memory,
                         "products": []
-                    }
+                    },
+                    "response_time_ms": (time.perf_counter() - t0) * 1000,
+                    "tokens_used": request_tokens.get()
                 }
+
 
         # 3. Query embedding - lazy AND backgrounded. Only two things ever
         # need the actual vector: the parser's semantic-cache lookup (only
@@ -897,10 +905,15 @@ class Orchestrator:
                 # get_detail() has that), so seller_description is omitted.
                 if context.consultation_level == "expert" and len(evidence.products) == 1:
                     only_product = evidence.products[0]
+                    dd_slug = only_product.get("slug")
                     with _timed(timings, "deep_dive"):
-                        deep_dive_text = await llm_client_wrapper.format_product_deep_dive(
-                            only_product.get("name"), None, only_product.get("price"),
-                        )
+                        deep_dive_text = await cache_repo.get_cached_search(f"deep_dive:{dd_slug}") if dd_slug else None
+                        if deep_dive_text is None:
+                            deep_dive_text = await llm_client_wrapper.format_product_deep_dive(
+                                only_product.get("name"), None, only_product.get("price"),
+                            )
+                            if deep_dive_text and dd_slug:
+                                await cache_repo.set_cached_search(f"deep_dive:{dd_slug}", deep_dive_text, ttl_seconds=1209600)
                     if deep_dive_text:
                         evidence = evidence.copy(update={"deep_dive_text": deep_dive_text})
                         print(f"\n[Orchestrator] Product Deep-Dive (SEARCH) - '{message}' asked to be "
@@ -958,7 +971,18 @@ class Orchestrator:
                 conversation.memory["search_results"] = evidence.related_products
                 conversation.memory["search_pointer"] = len(evidence.related_products)
         elif context.intent == "PRODUCT_INFO":
-            slug = context.product or (context.query_q.replace(" ", "-") if context.query_q else "")
+            slug = context.product
+            # Safety Guard: only guess slug from query_q if it matches a previously shown product's name or slug
+            if not slug and context.query_q:
+                search_results = conversation.memory.get("search_results") or []
+                q_clean = context.query_q.strip().lower()
+                for p in search_results:
+                    p_slug = p.get("slug") or ""
+                    p_name = p.get("name") or ""
+                    if q_clean == p_slug.lower() or q_clean == p_name.lower():
+                        slug = p_slug
+                        break
+
             if not slug:
                 # Genuinely ambiguous reference (e.g. "nó" among 20 products
                 # just shown) - ask instead of guessing. Deterministic, no
@@ -990,12 +1014,17 @@ class Orchestrator:
                 # response_formatter's DETAIL branch renders this IN PLACE OF
                 # the raw description snippet.
                 if evidence.details:
+                    dd_slug = evidence.details.get("slug")
                     with _timed(timings, "deep_dive"):
-                        deep_dive_text = await llm_client_wrapper.format_product_deep_dive(
-                            evidence.details.get("name"),
-                            evidence.details.get("details"),
-                            evidence.details.get("price"),
-                        )
+                        deep_dive_text = await cache_repo.get_cached_search(f"deep_dive:{dd_slug}") if dd_slug else None
+                        if deep_dive_text is None:
+                            deep_dive_text = await llm_client_wrapper.format_product_deep_dive(
+                                evidence.details.get("name"),
+                                evidence.details.get("details"),
+                                evidence.details.get("price"),
+                            )
+                            if deep_dive_text and dd_slug:
+                                await cache_repo.set_cached_search(f"deep_dive:{dd_slug}", deep_dive_text, ttl_seconds=1209600)
                     if deep_dive_text:
                         evidence = evidence.copy(update={"deep_dive_text": deep_dive_text})
                         print(f"\n[Orchestrator] Product Deep-Dive - '{message}' asked for a deeper look "
@@ -1082,7 +1111,40 @@ class Orchestrator:
         # check has its own extra guards (_no_text_search, already_nudged).
         skip_products_this_turn = context.intent == "SEARCH" and is_vague_nudge_this_turn
         if context.intent == "SEARCH" and evidence.products and not skip_products_this_turn:
-            response_products = evidence.products[:5]
+            top5 = evidence.products[:5]
+            # 1. If this is a recommendation turn (suitability_score is set), filter by display threshold first
+            if top5[0].get("suitability_score") is not None:
+                from app.chat.response_formatter import _REC_MIN_DISPLAY_SCORE
+                response_products = [p for p in top5 if (p.get("suitability_score") or 0) >= _REC_MIN_DISPLAY_SCORE]
+                if not response_products:
+                    response_products = top5
+            else:
+                response_products = top5
+
+            # 2. Alignment filter: only keep products whose name or key words are mentioned in the LLM answer
+            if answer and response_products:
+                mentioned_products = []
+                for p in response_products:
+                    name = p.get("name") or ""
+                    # Check first 3 words or full name in answer
+                    name_words = [w.lower() for w in name.split() if len(w) > 1]
+                    if not name_words:
+                        mentioned_products.append(p)
+                        continue
+                    prefix = " ".join(name_words[:3])
+                    # If prefix or full name or a unique numerical code is in answer
+                    has_match = prefix in answer.lower() or name.lower() in answer.lower()
+                    if not has_match:
+                        for w in name_words:
+                            if (w.isalnum() and any(c.isdigit() for c in w)) or len(w) > 5:
+                                if w in answer.lower():
+                                    has_match = True
+                                    break
+                    if has_match:
+                        mentioned_products.append(p)
+                if mentioned_products:
+                    response_products = mentioned_products
+
             if len(evidence.products) > 5:
                 follow_up_actions = [SEE_MORE_ACTION]
         elif skip_products_this_turn:
@@ -1103,7 +1165,10 @@ class Orchestrator:
                 "session_id": conversation.session_id,
                 "memory": conversation.memory,
                 "products": response_products
-            }
+            },
+            "response_time_ms": (time.perf_counter() - t0) * 1000,
+            "tokens_used": request_tokens.get()
         }
+
 
 orchestrator = Orchestrator()

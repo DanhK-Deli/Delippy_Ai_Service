@@ -1,0 +1,212 @@
+{
+  "_source": "docs/chatbot-cskh-knowledge-base-design.md#11_security",
+  "_note": "Xử lý bảo mật nâng cao hơn 02_account. nghi_ngo_bi_chiem_tai_khoan là tình huống ưu tiên cao nhất trong toàn bộ chatbot.",
+  "knowledge_objects": [
+    {
+      "id": "SECURITY_CHANGE_PASSWORD",
+      "domain": "11_security",
+      "sub_domain": "mat_khau",
+      "intent": "doi_mat_khau",
+      "description": "Hướng dẫn đổi mật khẩu khi đang đăng nhập bình thường.",
+      "keywords": ["đổi mật khẩu"],
+      "synonyms": [],
+      "sample_questions": ["Tôi muốn đổi mật khẩu"],
+      "entities": [],
+      "required_entities": [],
+      "optional_entities": [],
+      "business_rules": [
+        "Xác nhận đúng là chủ tài khoản trước khi thực hiện bất kỳ thay đổi bảo mật nào.",
+        "Mật khẩu mới phải đáp ứng chính sách độ mạnh."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Hướng dẫn tự thao tác đổi mật khẩu trong app"},
+        {"step": 2, "action": "Nếu lỗi: kiểm tra nguyên nhân phổ biến trước khi escalate"}
+      ],
+      "validation_rules": [
+        "Mật khẩu mới phải đáp ứng chính sách độ mạnh.",
+        "Xác nhận đúng là chủ tài khoản trước khi thực hiện."
+      ],
+      "api_mapping": [
+        {"tool_id": "TOOL_SECURITY_CHANGE_PASSWORD"}
+      ],
+      "response_templates": {
+        "success_response": "RT_SECURITY_CHANGE_PASSWORD_GUIDE",
+        "failure_response": "RT_ESCALATE_GENERIC"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [
+        {"trigger": "lỗi đổi mật khẩu không rõ nguyên nhân", "priority": "normal", "action": "escalate"}
+      ],
+      "logging": {"events": ["password_change_guided"], "sensitivity": "high", "note": "log riêng biệt, bảo mật cao hơn, hạn chế truy cập nội bộ"},
+      "analytics_tags": ["doi_mat_khau_rate"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["nghi_ngo_bi_chiem_tai_khoan"]
+    },
+    {
+      "id": "SECURITY_ACCOUNT_TAKEOVER_SUSPECTED",
+      "domain": "11_security",
+      "sub_domain": "chiem_quyen",
+      "intent": "nghi_ngo_bi_chiem_tai_khoan",
+      "description": "Xử lý khẩn cấp khi người dùng nghi ngờ tài khoản bị chiếm quyền — ưu tiên cao nhất toàn hệ thống.",
+      "keywords": ["tài khoản của tôi bị ai đó vào"],
+      "synonyms": [
+        {"canonical": "chiếm tài khoản", "variants": ["hack", "bị vào trộm"]}
+      ],
+      "sample_questions": ["Tôi nghĩ tài khoản mình bị người khác chiếm rồi"],
+      "entities": ["thiet_bi_la", "thoi_diem_dang_nhap_la"],
+      "required_entities": [],
+      "optional_entities": ["thiet_bi_la", "thoi_diem_dang_nhap_la"],
+      "business_rules": [
+        "Xác thực lại danh tính bằng kênh phụ — KHÔNG chỉ dựa vào phiên đang đăng nhập, vì phiên đó có thể chính là của kẻ chiếm quyền.",
+        "Escalate ngay lập tức, ưu tiên khẩn nhất trong toàn bộ hệ thống."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Xác thực lại danh tính bằng kênh phụ (không chỉ dựa vào phiên đang đăng nhập)"},
+        {"step": 2, "action": "Hướng dẫn ngay các bước tự bảo vệ: đổi mật khẩu, đăng xuất mọi thiết bị (TOOL_SECURITY_LOGOUT_ALL_DEVICES) nếu tính năng tồn tại"},
+        {"step": 3, "action": "Escalate ngay lập tức qua TOOL_CONTACT_TICKET_CREATE, ưu tiên khẩn"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [
+        {"tool_id": "TOOL_SECURITY_LOGOUT_ALL_DEVICES"},
+        {"tool_id": "TOOL_SECURITY_SESSION_LIST"},
+        {"tool_id": "TOOL_CONTACT_TICKET_CREATE"}
+      ],
+      "response_templates": {
+        "success_response": "RT_SECURITY_ACCOUNT_TAKEOVER_URGENT",
+        "failure_response": "RT_SECURITY_ACCOUNT_TAKEOVER_URGENT"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [
+        {"trigger": "mọi trường hợp nghi ngờ chiếm tài khoản", "priority": "critical", "action": "escalate ngay lập tức, mức khẩn nhất toàn hệ thống"}
+      ],
+      "logging": {"events": ["account_takeover_suspected", "escalated_urgent"], "sensitivity": "high", "note": "lưu đủ dài để phục vụ điều tra nếu cần"},
+      "analytics_tags": ["account_takeover_suspected_count_over_time"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "critical",
+      "confidence_threshold": "TODO",
+      "related_intents": ["phat_hien_dang_nhap_la", "tai_khoan_bi_khoa"]
+    },
+    {
+      "id": "SECURITY_UNFAMILIAR_LOGIN_DETECTED",
+      "domain": "11_security",
+      "sub_domain": "chiem_quyen",
+      "intent": "phat_hien_dang_nhap_la",
+      "description": "Người dùng phát hiện có phiên đăng nhập lạ (thiết bị/thời điểm không phải của họ).",
+      "keywords": ["có ai đăng nhập lạ"],
+      "synonyms": [],
+      "sample_questions": ["Sao lại có thiết bị lạ đăng nhập vào tài khoản tôi?"],
+      "entities": ["thiet_bi_la", "thoi_diem_dang_nhap_la"],
+      "required_entities": [],
+      "optional_entities": ["thiet_bi_la", "thoi_diem_dang_nhap_la"],
+      "business_rules": [
+        "Xử lý theo cùng mức ưu tiên khẩn với nghi_ngo_bi_chiem_tai_khoan."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Dùng chung conversation_flow với SECURITY_ACCOUNT_TAKEOVER_SUSPECTED"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [
+        {"tool_id": "TOOL_SECURITY_SESSION_LIST"},
+        {"tool_id": "TOOL_SECURITY_LOGOUT_ALL_DEVICES"}
+      ],
+      "response_templates": {
+        "success_response": "RT_SECURITY_ACCOUNT_TAKEOVER_URGENT",
+        "failure_response": "RT_SECURITY_ACCOUNT_TAKEOVER_URGENT"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [
+        {"trigger": "mọi trường hợp phát hiện đăng nhập lạ", "priority": "critical", "action": "escalate ngay lập tức"}
+      ],
+      "logging": {"events": ["unfamiliar_login_reported", "escalated_urgent"], "sensitivity": "high"},
+      "analytics_tags": ["account_takeover_suspected_count_over_time"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "critical",
+      "confidence_threshold": "TODO",
+      "related_intents": ["nghi_ngo_bi_chiem_tai_khoan"]
+    },
+    {
+      "id": "SECURITY_PHISHING_REPORT",
+      "domain": "11_security",
+      "sub_domain": "lua_dao",
+      "intent": "bao_cao_lua_dao_mao_danh",
+      "description": "Ghi nhận báo cáo lừa đảo/phishing mạo danh Delippy.",
+      "keywords": ["tin nhắn giả mạo Delippy", "lừa đảo"],
+      "synonyms": [
+        {"canonical": "lừa đảo", "variants": ["scam", "giả mạo"]}
+      ],
+      "sample_questions": ["Tôi nhận được tin nhắn giả mạo Delippy"],
+      "entities": ["kenh_nghi_ngo_lua_dao", "noi_dung_nghi_ngo"],
+      "required_entities": ["kenh_nghi_ngo_lua_dao"],
+      "optional_entities": ["noi_dung_nghi_ngo"],
+      "business_rules": [
+        "Nhiều báo cáo trùng lặp về cùng một chiến dịch lừa đảo cần gộp lại thay vì xử lý rời rạc."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Thu thập kênh/nội dung nghi ngờ (kenh_nghi_ngo_lua_dao, noi_dung_nghi_ngo)"},
+        {"step": 2, "action": "Xác nhận với khách các kênh chính thức thật của Delippy (đối chiếu 01_company/12_contact)"},
+        {"step": 3, "action": "Ghi nhận báo cáo qua TOOL_SECURITY_PHISHING_REPORT_CREATE"},
+        {"step": 4, "action": "Escalate để đội an ninh/pháp lý xử lý, có thể cảnh báo diện rộng nếu là chiến dịch lớn"}
+      ],
+      "validation_rules": [
+        "Báo cáo lừa đảo không đủ thông tin xác minh → hỏi thêm trước khi ghi nhận."
+      ],
+      "api_mapping": [
+        {"tool_id": "TOOL_SECURITY_PHISHING_REPORT_CREATE"}
+      ],
+      "response_templates": {
+        "success_response": "RT_SECURITY_PHISHING_REPORT_ACK",
+        "failure_response": "RT_SECURITY_OFFICIAL_CHANNEL_CONFIRM"
+      },
+      "follow_up_questions": ["Bạn nhận được tin nhắn/cuộc gọi này qua kênh nào?"],
+      "escalation_rules": [
+        {"trigger": "mọi báo cáo lừa đảo mạo danh", "priority": "high", "action": "escalate luôn — có thể cần hành động pháp lý/cảnh báo cộng đồng"}
+      ],
+      "logging": {"events": ["phishing_report_created"], "sensitivity": "high"},
+      "analytics_tags": ["phishing_campaigns_detected_via_duplicate_reports"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "high",
+      "confidence_threshold": "TODO",
+      "related_intents": ["xac_minh_kenh_chinh_thuc"]
+    },
+    {
+      "id": "SECURITY_PERSONAL_DATA_INQUIRY",
+      "domain": "11_security",
+      "sub_domain": "bao_mat_thong_tin",
+      "intent": "hoi_bao_mat_thong_tin_ca_nhan",
+      "description": "Trả lời câu hỏi chung về bảo mật thông tin cá nhân của người dùng.",
+      "keywords": [],
+      "synonyms": [],
+      "sample_questions": ["Delippy bảo mật thông tin cá nhân của tôi thế nào?"],
+      "entities": [],
+      "required_entities": [],
+      "optional_entities": [],
+      "business_rules": [
+        "MISSING_FROM_DOCUMENT — tài liệu liệt kê intent này nhưng không mô tả business flow riêng, hợp lý là trỏ tới policy.security (10_policy)."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Chuyển sang intent hoi_chinh_sach_bao_mat của 10_policy"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [],
+      "response_templates": {
+        "success_response": "RT_POLICY_SUMMARY",
+        "failure_response": "RT_ERROR_GENERIC_FALLBACK"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [],
+      "logging": {"events": ["intent_matched"], "sensitivity": "normal"},
+      "analytics_tags": ["hoi_bao_mat_thong_tin_ca_nhan_rate"],
+      "cache_policy": {"cacheable": true, "reason": "nội dung tĩnh (dùng chung với policy)"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["hoi_chinh_sach_bao_mat"]
+    }
+  ]
+}

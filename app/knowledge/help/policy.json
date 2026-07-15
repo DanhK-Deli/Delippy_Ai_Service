@@ -1,0 +1,162 @@
+{
+  "_source": "docs/chatbot-cskh-knowledge-base-design.md#10_policy",
+  "_note": "Kho chính sách nền, là 'nguồn sự thật' (source of truth) được domain 03/04/05/06/07/09 trích dẫn con số/điều kiện cụ thể. Đánh mã theo domain liên quan (ví dụ policy.return.timeframe, policy.shipping.cancel_window) để domain khác tham chiếu bằng mã thay vì chép nội dung.",
+  "policy_codes_referenced_elsewhere": {
+    "policy.return.timeframe": "hạn đổi trả — tham chiếu bởi 06_return_refund (RETURN_REQUEST_CREATE), nội dung con số cụ thể MISSING_FROM_DOCUMENT",
+    "policy.shipping.cancel_window": "điều kiện huỷ đơn theo giai đoạn vận chuyển — tham chiếu bởi 03_order/05_shipping, nội dung con số cụ thể MISSING_FROM_DOCUMENT"
+  },
+  "knowledge_objects": [
+    {
+      "id": "POLICY_RETURN_INQUIRY",
+      "domain": "10_policy",
+      "sub_domain": "chinh_sach",
+      "intent": "hoi_chinh_sach_doi_tra",
+      "description": "Trả lời tóm tắt chính sách đổi trả chung của sàn.",
+      "keywords": ["chính sách đổi trả là gì"],
+      "synonyms": [
+        {"canonical": "chính sách", "variants": ["quy định", "điều khoản"]}
+      ],
+      "sample_questions": ["Chính sách đổi trả của Delippy như thế nào?"],
+      "entities": ["loai_chinh_sach"],
+      "required_entities": [],
+      "optional_entities": ["loai_chinh_sach"],
+      "business_rules": [
+        "Chính sách có ngoại lệ theo từng seller/ngành hàng mà bản tóm tắt chung không phản ánh hết — khi phát hiện câu hỏi rơi vào ngoại lệ, phải nói rõ 'chính sách chung là X, tuy nhiên một số ngành hàng/seller có thể áp dụng khác'."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Nhận diện loại chính sách được hỏi = đổi trả"},
+        {"step": 2, "action": "Trả lời bằng RT_POLICY_SUMMARY (loai_chinh_sach = 'đổi trả'), kèm liên kết trang điều khoản đầy đủ"}
+      ],
+      "validation_rules": [
+        "Đảm bảo mã chính sách chatbot trích dẫn khớp với bản chính sách mới nhất."
+      ],
+      "api_mapping": [],
+      "response_templates": {
+        "success_response": "RT_POLICY_SUMMARY",
+        "failure_response": "RT_ERROR_GENERIC_FALLBACK"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [
+        {"trigger": "khách cho rằng chính sách áp dụng cho họ không công bằng/cần ngoại lệ", "priority": "normal", "action": "escalate — quyết định con người"}
+      ],
+      "logging": {"events": ["policy_summary_shown"], "sensitivity": "normal"},
+      "analytics_tags": ["policy_return_inquiry_rate", "policy_to_escalate_correlation"],
+      "cache_policy": {"cacheable": true, "reason": "nội dung tĩnh, chỉ cần versioning khi chính sách cập nhật"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["yeu_cau_doi_tra"]
+    },
+    {
+      "id": "POLICY_SHIPPING_INQUIRY",
+      "domain": "10_policy",
+      "sub_domain": "chinh_sach",
+      "intent": "hoi_chinh_sach_van_chuyen",
+      "description": "Trả lời tóm tắt chính sách vận chuyển/huỷ đơn chung của sàn.",
+      "keywords": ["quy định huỷ đơn"],
+      "synonyms": [
+        {"canonical": "chính sách", "variants": ["quy định", "điều khoản"]}
+      ],
+      "sample_questions": ["Chính sách huỷ đơn thế nào?"],
+      "entities": ["loai_chinh_sach"],
+      "required_entities": [],
+      "optional_entities": ["loai_chinh_sach"],
+      "business_rules": [
+        "Cùng cơ chế ngoại lệ theo seller/ngành hàng như POLICY_RETURN_INQUIRY."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Nhận diện loại chính sách được hỏi = vận chuyển/huỷ đơn"},
+        {"step": 2, "action": "Trả lời bằng RT_POLICY_SUMMARY (loai_chinh_sach = 'vận chuyển')"}
+      ],
+      "validation_rules": [
+        "Đảm bảo mã chính sách khớp bản mới nhất."
+      ],
+      "api_mapping": [],
+      "response_templates": {
+        "success_response": "RT_POLICY_SUMMARY",
+        "failure_response": "RT_ERROR_GENERIC_FALLBACK"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [
+        {"trigger": "khách cho rằng chính sách không công bằng/cần ngoại lệ", "priority": "normal", "action": "escalate"}
+      ],
+      "logging": {"events": ["policy_summary_shown"], "sensitivity": "normal"},
+      "analytics_tags": ["policy_shipping_inquiry_rate"],
+      "cache_policy": {"cacheable": true, "reason": "nội dung tĩnh"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["huy_don_hang"]
+    },
+    {
+      "id": "POLICY_SECURITY_INQUIRY",
+      "domain": "10_policy",
+      "sub_domain": "chinh_sach",
+      "intent": "hoi_chinh_sach_bao_mat",
+      "description": "Trả lời tóm tắt chính sách bảo mật dữ liệu.",
+      "keywords": ["chính sách bảo mật"],
+      "synonyms": [
+        {"canonical": "chính sách", "variants": ["quy định", "điều khoản"]}
+      ],
+      "sample_questions": ["Chính sách bảo mật dữ liệu của Delippy?"],
+      "entities": ["loai_chinh_sach"],
+      "required_entities": [],
+      "optional_entities": ["loai_chinh_sach"],
+      "business_rules": [],
+      "conversation_flow": [
+        {"step": 1, "action": "Nhận diện loại chính sách được hỏi = bảo mật"},
+        {"step": 2, "action": "Trả lời bằng RT_POLICY_SUMMARY (loai_chinh_sach = 'bảo mật')"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [],
+      "response_templates": {
+        "success_response": "RT_POLICY_SUMMARY",
+        "failure_response": "RT_ERROR_GENERIC_FALLBACK"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [],
+      "logging": {"events": ["policy_summary_shown"], "sensitivity": "normal"},
+      "analytics_tags": ["policy_security_inquiry_rate"],
+      "cache_policy": {"cacheable": true, "reason": "nội dung tĩnh"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["hoi_bao_mat_thong_tin_ca_nhan"]
+    },
+    {
+      "id": "POLICY_TERMS_INQUIRY",
+      "domain": "10_policy",
+      "sub_domain": "chinh_sach",
+      "intent": "hoi_dieu_khoan_su_dung",
+      "description": "Trả lời tóm tắt điều khoản sử dụng chung của sàn.",
+      "keywords": ["điều khoản sử dụng"],
+      "synonyms": [
+        {"canonical": "chính sách", "variants": ["quy định", "điều khoản"]}
+      ],
+      "sample_questions": ["Điều khoản sử dụng Delippy là gì?"],
+      "entities": ["loai_chinh_sach"],
+      "required_entities": [],
+      "optional_entities": ["loai_chinh_sach"],
+      "business_rules": [],
+      "conversation_flow": [
+        {"step": 1, "action": "Nhận diện loại chính sách được hỏi = điều khoản sử dụng"},
+        {"step": 2, "action": "Trả lời bằng RT_POLICY_SUMMARY (loai_chinh_sach = 'điều khoản sử dụng')"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [],
+      "response_templates": {
+        "success_response": "RT_POLICY_SUMMARY",
+        "failure_response": "RT_ERROR_GENERIC_FALLBACK"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [],
+      "logging": {"events": ["policy_summary_shown"], "sensitivity": "normal"},
+      "analytics_tags": ["policy_terms_inquiry_rate"],
+      "cache_policy": {"cacheable": true, "reason": "nội dung tĩnh"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": []
+    }
+  ]
+}

@@ -1,0 +1,170 @@
+{
+  "_source": "docs/chatbot-cskh-knowledge-base-design.md#08_profile",
+  "_note": "Khác với 02_account (truy cập) — đây là NỘI DUNG hồ sơ: tên, avatar, sổ địa chỉ, SĐT liên hệ hiển thị. Sửa sổ địa chỉ KHÔNG tự động cập nhật địa chỉ của đơn đã đặt.",
+  "knowledge_objects": [
+    {
+      "id": "PROFILE_UPDATE_INFO",
+      "domain": "08_profile",
+      "sub_domain": "chinh_sua",
+      "intent": "cap_nhat_thong_tin_ca_nhan",
+      "description": "Hướng dẫn cập nhật tên hiển thị/avatar/ngày sinh.",
+      "keywords": ["đổi tên hiển thị", "cập nhật ảnh đại diện"],
+      "synonyms": [
+        {"canonical": "hồ sơ", "variants": ["profile", "thông tin cá nhân"]}
+      ],
+      "sample_questions": ["Làm sao đổi tên hiển thị?", "Cập nhật ảnh đại diện thế nào?"],
+      "entities": ["truong_thong_tin"],
+      "required_entities": ["truong_thong_tin"],
+      "optional_entities": [],
+      "business_rules": [
+        "Hầu hết thao tác hồ sơ là tự phục vụ ngay trong app — vai trò chatbot chủ yếu là hướng dẫn đường dẫn thao tác, không tự thực hiện hộ để giảm rủi ro sai sót dữ liệu cá nhân qua kênh chat."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Xác định trường thông tin muốn đổi (tên/avatar/ngày sinh)"},
+        {"step": 2, "action": "Trả lời RT_PROFILE_EDIT_GUIDE hướng dẫn đường dẫn màn hình trong app"}
+      ],
+      "validation_rules": [
+        "Định dạng số điện thoại/email nếu chatbot có hỗ trợ xác nhận trước khi hướng dẫn lưu."
+      ],
+      "api_mapping": [
+        {"tool_id": "TOOL_PROFILE_GET", "note": "đọc để xác nhận thông tin hiện tại khi cần"}
+      ],
+      "response_templates": {
+        "success_response": "RT_PROFILE_EDIT_GUIDE",
+        "failure_response": "RT_PROFILE_SAVE_ERROR_COMMON"
+      },
+      "follow_up_questions": ["Bạn muốn đổi tên hiển thị, ảnh đại diện hay thông tin khác?"],
+      "escalation_rules": [
+        {"trigger": "thao tác tự phục vụ liên tục lỗi sau khi đã loại trừ nguyên nhân phổ biến", "priority": "normal", "action": "escalate — nghi ngờ lỗi hệ thống cần kỹ thuật can thiệp"}
+      ],
+      "logging": {"events": ["profile_edit_guide_shown"], "sensitivity": "normal"},
+      "analytics_tags": ["profile_save_error_rate_by_app_version"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["khong_luu_duoc_thong_tin"]
+    },
+    {
+      "id": "PROFILE_ADDRESS_BOOK",
+      "domain": "08_profile",
+      "sub_domain": "chinh_sua",
+      "intent": "them_sua_xoa_dia_chi",
+      "description": "Hướng dẫn thêm/sửa/xoá địa chỉ trong sổ địa chỉ giao hàng.",
+      "keywords": ["thêm địa chỉ", "sửa địa chỉ giao hàng"],
+      "synonyms": [
+        {"canonical": "sổ địa chỉ", "variants": ["địa chỉ giao hàng đã lưu"]}
+      ],
+      "sample_questions": ["Làm sao thêm địa chỉ giao hàng mới?", "Tôi muốn sửa địa chỉ đã lưu"],
+      "entities": ["dia_chi_moi", "dia_chi_can_xoa"],
+      "required_entities": [],
+      "optional_entities": ["dia_chi_moi", "dia_chi_can_xoa"],
+      "business_rules": [
+        "Sửa sổ địa chỉ KHÔNG tự động cập nhật địa chỉ của đơn đã đặt — cần làm rõ với khách điều này (liên quan 03_order/05_shipping)."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Xác định thao tác: thêm/sửa/xoá địa chỉ"},
+        {"step": 2, "action": "Trả lời RT_PROFILE_EDIT_GUIDE hướng dẫn đường dẫn màn hình sổ địa chỉ trong app"},
+        {"step": 3, "action": "Nếu câu hỏi liên quan đơn đã đặt: giải thích rõ sửa sổ địa chỉ không ảnh hưởng đơn cũ"}
+      ],
+      "validation_rules": [
+        "Địa chỉ nhập thiếu thông tin bắt buộc (phường/xã, số nhà) → cần đủ trước khi hướng dẫn lưu."
+      ],
+      "api_mapping": [
+        {"tool_id": "TOOL_PROFILE_GET", "note": "đọc địa chỉ mặc định để xác nhận với khách trước khi trỏ sang shipping"}
+      ],
+      "response_templates": {
+        "success_response": "RT_PROFILE_EDIT_GUIDE",
+        "failure_response": "RT_PROFILE_SAVE_ERROR_COMMON"
+      },
+      "follow_up_questions": ["Bạn muốn thêm mới, sửa, hay xoá địa chỉ nào?"],
+      "escalation_rules": [
+        {"trigger": "thao tác tự phục vụ liên tục lỗi", "priority": "normal", "action": "escalate"}
+      ],
+      "logging": {"events": ["address_book_guide_shown"], "sensitivity": "normal"},
+      "analytics_tags": ["profile_save_error_rate_by_app_version"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["doi_dia_chi_mac_dinh", "doi_dia_chi_giao"]
+    },
+    {
+      "id": "PROFILE_DEFAULT_ADDRESS_CHANGE",
+      "domain": "08_profile",
+      "sub_domain": "chinh_sua",
+      "intent": "doi_dia_chi_mac_dinh",
+      "description": "Hướng dẫn đổi địa chỉ mặc định trong sổ địa chỉ.",
+      "keywords": ["địa chỉ mặc định"],
+      "synonyms": [],
+      "sample_questions": ["Làm sao đổi địa chỉ mặc định?"],
+      "entities": ["dia_chi_moi"],
+      "required_entities": ["dia_chi_moi"],
+      "optional_entities": [],
+      "business_rules": [
+        "MISSING_FROM_DOCUMENT — không có business flow riêng mô tả, suy luận dùng chung hướng dẫn với them_sua_xoa_dia_chi."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Trả lời RT_PROFILE_EDIT_GUIDE hướng dẫn đường dẫn màn hình đổi địa chỉ mặc định"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [
+        {"tool_id": "TOOL_PROFILE_GET"}
+      ],
+      "response_templates": {
+        "success_response": "RT_PROFILE_EDIT_GUIDE",
+        "failure_response": "RT_PROFILE_SAVE_ERROR_COMMON"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [],
+      "logging": {"events": ["default_address_guide_shown"], "sensitivity": "normal"},
+      "analytics_tags": ["profile_save_error_rate_by_app_version"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["them_sua_xoa_dia_chi"]
+    },
+    {
+      "id": "PROFILE_SAVE_FAILED",
+      "domain": "08_profile",
+      "sub_domain": "su_co",
+      "intent": "khong_luu_duoc_thong_tin",
+      "description": "Xử lý khi khách báo sửa hồ sơ nhưng không lưu được.",
+      "keywords": [],
+      "synonyms": [],
+      "sample_questions": ["Tôi sửa thông tin mà không lưu được"],
+      "entities": [],
+      "required_entities": [],
+      "optional_entities": [],
+      "business_rules": [
+        "Kiểm tra lỗi phổ biến (định dạng dữ liệu, kết nối mạng) trước khi escalate."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Hỏi khách thao tác cụ thể đang lỗi (trường nào, thông báo lỗi gì nếu có)"},
+        {"step": 2, "action": "Kiểm tra loại trừ nguyên nhân phổ biến: định dạng dữ liệu, kết nối mạng, dung lượng ảnh"},
+        {"step": 3, "action": "Nếu đã loại trừ mà vẫn lỗi: escalate"}
+      ],
+      "validation_rules": [
+        "Ảnh đại diện vượt dung lượng cho phép.",
+        "Địa chỉ nhập thiếu thông tin bắt buộc."
+      ],
+      "api_mapping": [],
+      "response_templates": {
+        "success_response": "RT_PROFILE_SAVE_ERROR_COMMON",
+        "failure_response": "RT_ESCALATE_GENERIC"
+      },
+      "follow_up_questions": ["Bạn đang gặp lỗi khi sửa thông tin nào — tên, ảnh, hay địa chỉ?"],
+      "escalation_rules": [
+        {"trigger": "lỗi lưu liên tục sau khi đã loại trừ nguyên nhân phổ biến", "priority": "normal", "action": "escalate — nghi ngờ lỗi hệ thống/bug UI-API"}
+      ],
+      "logging": {"events": ["save_error_reported"], "sensitivity": "normal", "note": "chỉ báo bug UI/API cần đội kỹ thuật xử lý"},
+      "analytics_tags": ["profile_save_error_rate_by_app_version"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["cap_nhat_thong_tin_ca_nhan"]
+    }
+  ]
+}

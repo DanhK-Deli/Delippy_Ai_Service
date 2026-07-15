@@ -1,0 +1,65 @@
+{
+  "_domain_role": "14_error_message — Thư viện thông báo lỗi chuẩn hoá. Chuẩn hoá cách chatbot diễn giải mã lỗi kỹ thuật từ API thành câu nói dễ hiểu, tránh lộ thông tin kỹ thuật nhạy cảm (mã lỗi, stack trace). Dùng chung bởi mọi domain nghiệp vụ 01-13 mỗi khi lời gọi API thất bại — không có intent riêng, được kích hoạt bởi kết quả lỗi từ tầng API, không phải bởi câu hỏi trực tiếp của người dùng.",
+  "_source": "docs/chatbot-cskh-knowledge-base-design.md#14_error_message",
+  "error_mappings": [
+    {
+      "error_group": "timeout",
+      "description": "API không phản hồi trong thời gian cho phép.",
+      "response_template": "RT_ERROR_GENERIC_BUSY",
+      "escalate_immediately": false
+    },
+    {
+      "error_group": "not_found",
+      "description": "Dữ liệu không tồn tại (ví dụ mã đơn không khớp).",
+      "response_template": "RT_ERROR_NOT_FOUND",
+      "escalate_immediately": false
+    },
+    {
+      "error_group": "auth_error_sensitive",
+      "description": "Lỗi xác thực nhạy cảm (401/403 từ backend khi request ĐÃ có token — nghi ngờ truy cập trái phép, không phải chỉ chưa đăng nhập).",
+      "response_template": "RT_ESCALATE_GENERIC",
+      "escalate_immediately": true,
+      "note": "Theo .agents/AGENTS.md quy tắc 3: user đã đăng nhập (có token) mà backend vẫn trả 401/403 -> tạo ticket ngay (escalated=true), render RT_ESCALATE_GENERIC. Không hiển thị mã lỗi kỹ thuật gốc cho khách, chỉ ghi log nội bộ."
+    },
+    {
+      "error_group": "critical_system_error",
+      "description": "Lỗi hệ thống nghiêm trọng.",
+      "response_template": "RT_ERROR_GENERIC_FALLBACK",
+      "escalate_immediately": true,
+      "note": "Bỏ qua bước trả lời thân thiện, chuyển thẳng CSKH kèm mã lỗi gốc."
+    },
+    {
+      "error_group": "unauthenticated",
+      "description": "Guest (không có token) cố thực hiện một Protected Action — khác với auth_error_sensitive (không phải nghi ngờ xâm nhập, chỉ là chưa đăng nhập).",
+      "response_template": "RT_ERROR_UNAUTHENTICATED",
+      "escalate_immediately": false,
+      "note": "Theo .agents/AGENTS.md quy tắc 3: pipeline KHÔNG được gọi tool backend trong trường hợp này (chặn ngay từ app/help/flow_executor.py trước khi gọi API, dựa theo tool.json's required_auth). Hỏi lại định danh/mời đăng nhập, không tạo ticket — kể cả khi lặp lại nhiều lần trong cùng phiên."
+    },
+    {
+      "error_group": "rate_limited",
+      "description": "API backend trả 429 (đang bị giới hạn tần suất gọi).",
+      "response_template": "RT_ERROR_RATE_LIMITED",
+      "escalate_immediately": false,
+      "note": "Gợi ý thử lại sau ít giây, không tạo ticket."
+    },
+    {
+      "error_group": "unknown_or_new",
+      "description": "Lỗi không nằm trong bảng ánh xạ đã biết (lỗi mới/hiếm gặp).",
+      "response_template": "RT_ERROR_GENERIC_FALLBACK",
+      "escalate_immediately": false,
+      "note": "Luôn có câu trả lời 'mặc định an toàn' cuối cùng thay vì để trống hoặc hiển thị lỗi thô."
+    }
+  ],
+  "business_rules": [
+    "Bất kỳ lúc nào một domain nghiệp vụ gọi API và nhận lỗi → tra bảng ánh xạ theo nhóm lỗi.",
+    "Nếu nhóm lỗi được đánh dấu escalate_immediately=true → bỏ qua bước trả lời thân thiện, chuyển thẳng CSKH kèm mã lỗi gốc (cho nhân viên, không hiển thị cho khách).",
+    "Nếu không → trả lời bằng câu chuẩn hoá và gợi ý thử lại/chờ.",
+    "Đảm bảo mọi nhóm lỗi kỹ thuật mới phát sinh (khi backend đổi API) đều được bổ sung ánh xạ, tránh lộ lỗi kỹ thuật thô ra người dùng."
+  ],
+  "logging": {
+    "events": ["api_error_mapped", "escalated_due_to_error"],
+    "sensitivity": "high",
+    "note": "log đầy đủ mã lỗi kỹ thuật gốc kèm domain gọi lỗi (dành cho đội kỹ thuật), tách biệt với log hội thoại hiển thị cho người dùng."
+  },
+  "analytics_tags": ["error_frequency_by_group_and_domain_api"]
+}

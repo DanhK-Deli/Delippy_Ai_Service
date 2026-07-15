@@ -1,0 +1,346 @@
+{
+  "_source": "docs/chatbot-cskh-knowledge-base-design.md#02_account",
+  "_deep_dive_domain": true,
+  "_lifecycle": "chưa xác minh → đang hoạt động → (tạm khoá ↔ đang hoạt động) → đã xoá. Mỗi chuyển trạng thái có timestamp và nguyên nhân.",
+  "knowledge_objects": [
+    {
+      "id": "ACCOUNT_REGISTER",
+      "domain": "02_account",
+      "sub_domain": "truy_cap",
+      "intent": "dang_ky_tai_khoan",
+      "description": "Hỗ trợ câu hỏi/vướng mắc khi đăng ký tài khoản mới (user hoặc seller).",
+      "keywords": ["đăng ký tài khoản"],
+      "synonyms": [
+        {"canonical": "đăng nhập", "variants": ["login", "vào app"]}
+      ],
+      "sample_questions": ["Làm sao đăng ký tài khoản Delippy?", "Đăng ký tài khoản seller thế nào?"],
+      "entities": ["so_dien_thoai", "email", "loai_tai_khoan", "kenh_dang_nhap"],
+      "required_entities": ["loai_tai_khoan"],
+      "optional_entities": ["so_dien_thoai", "email", "kenh_dang_nhap"],
+      "business_rules": [
+        "MISSING_FROM_DOCUMENT — Business Document không mô tả chi tiết luồng đăng ký (chỉ liệt kê intent), chỉ mô tả sâu 4 luồng: quên mật khẩu, không nhận OTP, tài khoản bị khoá, yêu cầu xoá tài khoản."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "MISSING_FROM_DOCUMENT — chưa có mô tả bước cụ thể cho luồng đăng ký trong tài liệu gốc"}
+      ],
+      "validation_rules": [
+        "Định dạng SĐT/email hợp lệ trước khi gọi API."
+      ],
+      "api_mapping": [
+        {"tool_id": "TOOL_ACCOUNT_LOOKUP_BY_CONTACT", "note": "dùng chung với luồng đăng ký/đăng nhập ở lib/features/user/auth/"}
+      ],
+      "response_templates": {
+        "success_response": "MISSING_FROM_DOCUMENT",
+        "failure_response": "RT_ERROR_GENERIC_FALLBACK"
+      },
+      "follow_up_questions": ["MISSING_FROM_DOCUMENT"],
+      "escalation_rules": [
+        {"trigger": "tài khoản seller bị nhầm hỏi ở luồng user (và ngược lại)", "priority": "normal", "action": "làm rõ loại tài khoản trước khi tiếp tục"}
+      ],
+      "logging": {"events": ["intent_matched"], "sensitivity": "high", "note": "sự kiện bảo mật lưu tách biệt mức nhạy cảm cao hơn log thông thường (mục 16 của 02_account)"},
+      "analytics_tags": ["dang_ky_tai_khoan_rate"],
+      "cache_policy": {"cacheable": false, "reason": "phụ thuộc user, không tĩnh"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["dang_nhap_loi", "kiem_tra_trang_thai_tai_khoan"]
+    },
+    {
+      "id": "ACCOUNT_LOGIN_ERROR",
+      "domain": "02_account",
+      "sub_domain": "truy_cap",
+      "intent": "dang_nhap_loi",
+      "description": "Xử lý các báo lỗi không đăng nhập được, phân luồng tiếp sang quên mật khẩu/không nhận OTP/tài khoản bị khoá tuỳ nguyên nhân.",
+      "keywords": ["không đăng nhập được", "sao không vào được app"],
+      "synonyms": [
+        {"canonical": "đăng nhập", "variants": ["login", "vào app"]},
+        {"canonical": "khoá tài khoản", "variants": ["bị chặn", "bị đình chỉ", "không vào được"]}
+      ],
+      "sample_questions": ["Sao tôi không đăng nhập được?", "App báo lỗi khi tôi đăng nhập"],
+      "entities": ["so_dien_thoai", "email", "so_dien_thoai_hoac_email", "loai_tai_khoan", "thoi_diem_thao_tac"],
+      "required_entities": ["so_dien_thoai_hoac_email"],
+      "optional_entities": ["thoi_diem_thao_tac"],
+      "business_rules": [
+        "Là intent phân luồng — dựa trên câu trả lời tiếp theo của khách để rẽ nhánh sang quen_mat_khau, khong_nhan_duoc_otp, hoặc tai_khoan_bi_khoa.",
+        "Không bao giờ tiết lộ tồn tại/không tồn tại tài khoản theo SĐT/email cho người chưa xác thực (chống user enumeration)."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Nhận diện intent dang_nhap_loi"},
+        {"step": 2, "action": "Hỏi làm rõ: quên mật khẩu / không nhận được mã / báo tài khoản bị khoá"},
+        {"step": 3, "action": "Rẽ nhánh sang knowledge object tương ứng (ACCOUNT_FORGOT_PASSWORD / ACCOUNT_OTP_NOT_RECEIVED / ACCOUNT_LOCKED)"}
+      ],
+      "validation_rules": [
+        "Định dạng SĐT/email hợp lệ trước khi gọi API."
+      ],
+      "api_mapping": [
+        {"tool_id": "TOOL_ACCOUNT_LOOKUP_BY_CONTACT"}
+      ],
+      "response_templates": {
+        "success_response": "RT_ASK_MORE_INFO_GENERIC",
+        "failure_response": "RT_ERROR_GENERIC_FALLBACK"
+      },
+      "follow_up_questions": ["Bạn quên mật khẩu, không nhận được mã OTP, hay tài khoản báo bị khoá?"],
+      "escalation_rules": [
+        {"trigger": "API timeout khi tra cứu trạng thái", "priority": "normal", "action": "escalate theo 14_error_message"}
+      ],
+      "logging": {"events": ["intent_matched", "branch_selected"], "sensitivity": "high"},
+      "analytics_tags": ["dang_nhap_loi_rate"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["quen_mat_khau", "khong_nhan_duoc_otp", "tai_khoan_bi_khoa"]
+    },
+    {
+      "id": "ACCOUNT_FORGOT_PASSWORD",
+      "domain": "02_account",
+      "sub_domain": "khoi_phuc_truy_cap",
+      "intent": "quen_mat_khau",
+      "description": "Xác nhận định danh và hướng dẫn gửi lại OTP/link đặt lại mật khẩu.",
+      "keywords": ["quên mật khẩu"],
+      "synonyms": [
+        {"canonical": "mã OTP", "variants": ["mã xác nhận", "code"]}
+      ],
+      "sample_questions": ["Tôi quên mật khẩu rồi, làm sao lấy lại?"],
+      "entities": ["so_dien_thoai", "email", "so_dien_thoai_hoac_email"],
+      "required_entities": ["so_dien_thoai_hoac_email"],
+      "optional_entities": [],
+      "business_rules": [
+        "Không bao giờ tiết lộ tồn tại/không tồn tại tài khoản theo SĐT/email cho người chưa xác thực."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Xác nhận định danh (SĐT/email)"},
+        {"step": 2, "action": "Kiểm tra tài khoản tồn tại qua TOOL_ACCOUNT_LOOKUP_BY_CONTACT"},
+        {"step": 3, "action": "Hướng dẫn gửi lại OTP/link đặt lại mật khẩu qua TOOL_ACCOUNT_RESEND_OTP"},
+        {"step": 4, "action": "Xác nhận đã gửi bằng RT_ACCOUNT_OTP_RESEND_GUIDE"}
+      ],
+      "validation_rules": [
+        "Định dạng SĐT/email hợp lệ trước khi gọi API.",
+        "Giới hạn số lần thử OTP/gửi lại trong một khoảng thời gian (rate limit) để chống spam."
+      ],
+      "api_mapping": [
+        {"tool_id": "TOOL_ACCOUNT_LOOKUP_BY_CONTACT"},
+        {"tool_id": "TOOL_ACCOUNT_RESEND_OTP"}
+      ],
+      "response_templates": {
+        "success_response": "RT_ACCOUNT_OTP_RESEND_GUIDE",
+        "failure_response": "RT_ERROR_GENERIC_FALLBACK"
+      },
+      "follow_up_questions": ["Bạn dùng số điện thoại hay email để đăng ký tài khoản?"],
+      "escalation_rules": [
+        {"trigger": "API tra cứu/gửi OTP timeout hoặc lỗi", "priority": "normal", "action": "escalate theo 14_error_message"}
+      ],
+      "logging": {"events": ["identity_confirmed", "otp_resent"], "sensitivity": "high"},
+      "analytics_tags": ["quen_mat_khau_rate", "login_ux_quality_signal"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["khong_nhan_duoc_otp", "dang_nhap_loi"]
+    },
+    {
+      "id": "ACCOUNT_OTP_NOT_RECEIVED",
+      "domain": "02_account",
+      "sub_domain": "khoi_phuc_truy_cap",
+      "intent": "khong_nhan_duoc_otp",
+      "description": "Kiểm tra kênh gửi OTP và xử lý khi hệ thống báo gửi thành công nhưng người dùng không nhận được.",
+      "keywords": ["không nhận được mã"],
+      "synonyms": [
+        {"canonical": "mã OTP", "variants": ["mã xác nhận", "code"]}
+      ],
+      "sample_questions": ["Tôi không nhận được mã OTP"],
+      "entities": ["kenh_dang_nhap", "ma_otp"],
+      "required_entities": ["kenh_dang_nhap"],
+      "optional_entities": ["ma_otp"],
+      "business_rules": [
+        "Nếu hệ thống báo gửi thành công nhưng người dùng không nhận, hướng dẫn kiểm tra chặn tin nhắn rác/thử kênh khác trước khi escalate."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Hỏi kênh nhận (SMS/Zalo/email)"},
+        {"step": 2, "action": "Kiểm tra qua TOOL_ACCOUNT_RESEND_OTP xem OTP có được gửi thành công không"},
+        {"step": 3, "action": "Nếu gửi thành công nhưng không nhận: hướng dẫn kiểm tra chặn tin nhắn rác/thử kênh khác"},
+        {"step": 4, "action": "Nếu vẫn lỗi: escalate"}
+      ],
+      "validation_rules": [
+        "Giới hạn số lần thử OTP/gửi lại trong một khoảng thời gian (rate limit) để chống spam."
+      ],
+      "api_mapping": [
+        {"tool_id": "TOOL_ACCOUNT_RESEND_OTP"}
+      ],
+      "response_templates": {
+        "success_response": "RT_ACCOUNT_OTP_RESEND_GUIDE",
+        "failure_response": "RT_ESCALATE_GENERIC"
+      },
+      "follow_up_questions": ["Bạn nhận mã qua SMS, Zalo hay email?"],
+      "escalation_rules": [
+        {"trigger": "đã hướng dẫn kiểm tra kênh khác nhưng vẫn không nhận được", "priority": "normal", "action": "escalate CSKH"}
+      ],
+      "logging": {"events": ["otp_channel_checked", "escalated"], "sensitivity": "high"},
+      "analytics_tags": ["khong_nhan_duoc_otp_rate"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["quen_mat_khau"]
+    },
+    {
+      "id": "ACCOUNT_LOCKED",
+      "domain": "02_account",
+      "sub_domain": "trang_thai_tai_khoan",
+      "intent": "tai_khoan_bi_khoa",
+      "description": "Tra cứu và giải thích trạng thái khoá tài khoản, hướng dẫn khiếu nại; không tự mở khoá.",
+      "keywords": ["tài khoản bị khoá"],
+      "synonyms": [
+        {"canonical": "khoá tài khoản", "variants": ["bị chặn", "bị đình chỉ", "không vào được"]}
+      ],
+      "sample_questions": ["Tại sao tài khoản tôi bị khoá?", "Tài khoản tôi bị chặn rồi"],
+      "entities": [],
+      "required_entities": [],
+      "optional_entities": [],
+      "business_rules": [
+        "Nếu do vi phạm chính sách: trả lời bằng template chung, KHÔNG tiết lộ chi tiết điều tra nội bộ.",
+        "Chatbot không có quyền tự mở khoá tài khoản."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Tra cứu trạng thái qua TOOL_ACCOUNT_STATUS_LOOKUP"},
+        {"step": 2, "action": "Trả lời bằng RT_ACCOUNT_LOCKED_STATUS + hướng dẫn quy trình khiếu nại"},
+        {"step": 3, "action": "Escalate CSKH để xử lý mở khoá"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [
+        {"tool_id": "TOOL_ACCOUNT_STATUS_LOOKUP"}
+      ],
+      "response_templates": {
+        "success_response": "RT_ACCOUNT_LOCKED_STATUS",
+        "failure_response": "RT_ERROR_GENERIC_FALLBACK"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [
+        {"trigger": "mọi yêu cầu mở khoá tài khoản", "priority": "high", "action": "escalate bắt buộc — chatbot chỉ tiếp nhận và hướng dẫn, không có quyền thực thi"}
+      ],
+      "logging": {"events": ["account_status_checked", "escalated"], "sensitivity": "high"},
+      "analytics_tags": ["tai_khoan_bi_khoa_rate", "account_escalation_rate"],
+      "cache_policy": {"cacheable": false, "reason": "trạng thái động, không cache"},
+      "ttl": "TODO",
+      "priority": "high",
+      "confidence_threshold": "TODO",
+      "related_intents": ["kiem_tra_trang_thai_tai_khoan", "nghi_ngo_bi_chiem_tai_khoan"]
+    },
+    {
+      "id": "ACCOUNT_DELETE_REQUEST",
+      "domain": "02_account",
+      "sub_domain": "trang_thai_tai_khoan",
+      "intent": "yeu_cau_xoa_tai_khoan",
+      "description": "Tiếp nhận yêu cầu xoá tài khoản có cấu trúc; không xoá ngay lập tức qua chatbot do liên quan dữ liệu cá nhân/pháp lý.",
+      "keywords": ["xoá tài khoản"],
+      "synonyms": [],
+      "sample_questions": ["Tôi muốn xoá tài khoản Delippy"],
+      "entities": [],
+      "required_entities": [],
+      "optional_entities": [],
+      "business_rules": [
+        "Hành động không thể tự động hoá hoàn toàn do liên quan dữ liệu cá nhân/pháp lý (GDPR-like).",
+        "Phải giải thích hệ quả (mất lịch sử đơn, voucher, ví...) trước khi xác nhận tạo yêu cầu."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Xác nhận yêu cầu xoá tài khoản"},
+        {"step": 2, "action": "Giải thích hệ quả (mất lịch sử đơn, voucher, ví...)"},
+        {"step": 3, "action": "Tạo yêu cầu qua TOOL_ACCOUNT_DELETE_REQUEST"},
+        {"step": 4, "action": "Escalate/tạo ticket cho bộ phận xử lý — không xoá ngay"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [
+        {"tool_id": "TOOL_ACCOUNT_DELETE_REQUEST"},
+        {"tool_id": "TOOL_CONTACT_TICKET_CREATE"}
+      ],
+      "response_templates": {
+        "success_response": "RT_ACCOUNT_DELETE_REQUEST_ACK",
+        "failure_response": "RT_ERROR_GENERIC_FALLBACK"
+      },
+      "follow_up_questions": ["Bạn xác nhận muốn xoá tài khoản và hiểu rõ sẽ mất lịch sử đơn/voucher/ví không?"],
+      "escalation_rules": [
+        {"trigger": "mọi yêu cầu xoá tài khoản", "priority": "high", "action": "escalate bắt buộc"}
+      ],
+      "logging": {"events": ["delete_request_created", "escalated"], "sensitivity": "high"},
+      "analytics_tags": ["yeu_cau_xoa_tai_khoan_rate"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "high",
+      "confidence_threshold": "TODO",
+      "related_intents": ["tai_khoan_bi_khoa"]
+    },
+    {
+      "id": "ACCOUNT_SOCIAL_LINK",
+      "domain": "02_account",
+      "sub_domain": "truy_cap",
+      "intent": "lien_ket_mang_xa_hoi",
+      "description": "Hướng dẫn liên kết/gỡ liên kết đăng nhập qua mạng xã hội (Google/Facebook/Apple).",
+      "keywords": [],
+      "synonyms": [],
+      "sample_questions": ["Làm sao liên kết tài khoản Facebook với Delippy?", "Gỡ liên kết Google được không?"],
+      "entities": ["kenh_dang_nhap"],
+      "required_entities": ["kenh_dang_nhap"],
+      "optional_entities": [],
+      "business_rules": [
+        "MISSING_FROM_DOCUMENT — tài liệu chỉ liệt kê intent và template mục tiêu, không mô tả chi tiết business flow riêng cho luồng này."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Xác định kênh mạng xã hội (Google/Facebook/Apple)"},
+        {"step": 2, "action": "Trả lời bằng RT_ACCOUNT_SOCIAL_LINK_GUIDE"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [],
+      "response_templates": {
+        "success_response": "RT_ACCOUNT_SOCIAL_LINK_GUIDE",
+        "failure_response": "RT_ERROR_GENERIC_FALLBACK"
+      },
+      "follow_up_questions": ["Bạn muốn liên kết hay gỡ liên kết mạng xã hội nào?"],
+      "escalation_rules": [],
+      "logging": {"events": ["intent_matched"], "sensitivity": "high"},
+      "analytics_tags": ["lien_ket_mang_xa_hoi_rate"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["dang_nhap_loi"]
+    },
+    {
+      "id": "ACCOUNT_STATUS_CHECK",
+      "domain": "02_account",
+      "sub_domain": "trang_thai_tai_khoan",
+      "intent": "kiem_tra_trang_thai_tai_khoan",
+      "description": "Tra cứu trạng thái hiện tại của tài khoản (hoạt động/chờ xác minh/tạm khoá/khoá vĩnh viễn/đã yêu cầu xoá).",
+      "keywords": [],
+      "synonyms": [],
+      "sample_questions": ["Tài khoản tôi đang ở trạng thái gì?"],
+      "entities": [],
+      "required_entities": [],
+      "optional_entities": [],
+      "business_rules": [
+        "Chỉ gọi API tra cứu trạng thái/OTP sau khi đã xác thực được người hỏi đúng là chủ tài khoản."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Xác thực người hỏi là chủ tài khoản (OTP hoặc đã đăng nhập sẵn)"},
+        {"step": 2, "action": "Tra cứu trạng thái qua TOOL_ACCOUNT_STATUS_LOOKUP"},
+        {"step": 3, "action": "Trả lời theo trạng thái tương ứng (dùng chung template với ACCOUNT_LOCKED nếu bị khoá)"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [
+        {"tool_id": "TOOL_ACCOUNT_STATUS_LOOKUP"}
+      ],
+      "response_templates": {
+        "success_response": "MISSING_FROM_DOCUMENT",
+        "failure_response": "RT_ERROR_GENERIC_FALLBACK"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [],
+      "logging": {"events": ["account_status_checked"], "sensitivity": "high"},
+      "analytics_tags": ["kiem_tra_trang_thai_tai_khoan_rate", "account_domain_escalation_rate"],
+      "cache_policy": {"cacheable": false, "reason": "trạng thái động"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["tai_khoan_bi_khoa"]
+    }
+  ]
+}

@@ -42,6 +42,13 @@ def resolve_followup(message: str, memory: Dict[str, Any]) -> Optional[Dict[str,
     reply minutes/hours later doesn't resurrect a dead conversation thread.
     Consumes (pops) the awaiting state on a successful match - it answers
     THIS one pending question, not every future SOCIAL reply in the session."""
+    # If the message is a polite closing/appreciation (like "cảm ơn", "thank you", "tuyệt vời"),
+    # do NOT resume the pending question - let it clear memory and return SOCIAL.
+    text_lower = (message or "").lower()
+    appreciation_words = ["cảm ơn", "cam on", "thank", "tuyệt vời", "tuyet voi", "cám ơn", "tks", "thanks"]
+    if any(aw in text_lower for aw in appreciation_words):
+        return None
+
     awaiting = memory.get("awaiting")
     if not awaiting:
         return None

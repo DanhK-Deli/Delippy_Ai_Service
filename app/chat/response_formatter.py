@@ -94,7 +94,7 @@ def _minimize_product(p: Dict[str, Any]) -> Dict[str, Any]:
         # Simple HTML tag stripping
         clean_desc = re.sub(r"<[^>]*>", "", str(details))
         clean_desc = " ".join(clean_desc.split())
-        min_p["details"] = clean_desc[:120] + "..." if len(clean_desc) > 120 else clean_desc
+        min_p["details"] = clean_desc[:60] + "..." if len(clean_desc) > 60 else clean_desc
     return min_p
 
 class ResponseFormatter:
@@ -353,9 +353,19 @@ class ResponseFormatter:
                 resp += f"_Delippy chưa tìm thấy: {', '.join(evidence.not_found)}._\n\n"
 
             resp += "**So sánh nhanh**\n\n"
-            header = "| Tiêu chí | " + " | ".join(it["name"] for it in items) + " |"
+            
+            # Clean and truncate product names in headers to prevent wrapping issues and broken layouts
+            clean_headers = []
+            for it in items:
+                raw_name = it.get("name") or ""
+                clean_name = raw_name.replace("\n", " ").replace("\r", " ").strip()
+                if len(clean_name) > 22:
+                    clean_name = clean_name[:19] + "..."
+                clean_headers.append(clean_name)
+                
+            header = "| Tiêu chí | " + " | ".join(clean_headers) + " |"
             resp += header + "\n"
-            resp += "|" + "---|" * (len(items) + 1) + "\n"
+            resp += "| " + " | ".join(["---"] * (len(items) + 1)) + " |\n"
             for criterion in table["criteria"]:
                 row = [_COMPARE_CRITERION_LABELS.get(criterion, criterion)]
                 for it in items:
@@ -529,7 +539,11 @@ class ResponseFormatter:
 
         evidence_str = json.dumps(evidence_payload, ensure_ascii=False, separators=(",", ":"))
         history_str = await history_lazy.get()
-        llm_response = await llm_client_wrapper.format_response(query, history_str, evidence_str)
+        if intent == "FAQ":
+            llm_response = await llm_client_wrapper.format_faq_response(query, history_str, evidence.faq_answer)
+        else:
+            llm_response = await llm_client_wrapper.format_response(query, history_str, evidence_str)
+
 
         # Append warning note to LLM response if any product is out of stock (and not already warned)
         if intent == "SEARCH" and evidence.products:

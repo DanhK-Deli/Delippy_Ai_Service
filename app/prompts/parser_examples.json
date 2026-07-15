@@ -1,7 +1,7 @@
 [
   {
     "id": "iphone_specific_model_none",
-    "anchor": true,
+    "anchor": false,
     "query": "iPhone 16 128GB",
     "context": [],
     "output": {"intent": "SEARCH", "consultation_level": "none", "category": "điện thoại & tablet", "brand": "apple", "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": "iPhone 16", "expanded_queries": []}
@@ -22,7 +22,7 @@
   },
   {
     "id": "thanks_social",
-    "anchor": true,
+    "anchor": false,
     "query": "cảm ơn bạn nhiều nha",
     "context": [],
     "output": {"intent": "SOCIAL", "sub_intent": "compliment", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": null, "expanded_queries": []}
@@ -46,7 +46,7 @@
   },
   {
     "id": "vehicle_daily_use_purpose_reply",
-    "anchor": true,
+    "anchor": false,
     "query": "đi hằng ngày",
     "context": [
       "(Conversation History: assistant just asked \"Bạn định đi xe để di chuyển hằng ngày, đi xa hay chở hàng, để Delippy tư vấn đúng nhu cầu hơn?\"; the SEARCH turn before that had category \"ô tô - xe máy - xe đạp\" and query_q \"xe\")"
@@ -170,5 +170,15 @@
     "query": "gợi ý giúp tôi vài bộ phim hay để xem cuối tuần",
     "context": [],
     "output": {"intent": "CHITCHAT", "sub_intent": "out_of_scope", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": null, "expanded_queries": []}
+  },
+  {
+    "id": "sizing_query_general_faq",
+    "anchor": false,
+    "query": "tôi nặng 75k cao 1m69 thì size nào là vừa",
+    "context": [
+      "(Category in context: \"thời trang nam\")"
+    ],
+    "output": {"intent": "FAQ", "category": "thời trang nam", "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": "áo size", "expanded_queries": ["bảng size áo nam", "chọn size nam"]}
   }
 ]
+

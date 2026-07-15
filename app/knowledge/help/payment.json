@@ -1,0 +1,268 @@
+{
+  "_source": "docs/chatbot-cskh-knowledge-base-design.md#04_payment",
+  "_deep_dive_domain": true,
+  "_lifecycle": "khởi tạo → chờ xác nhận (đang chờ webhook/polling từ cổng thanh toán) → thành công | thất bại | hết hạn. Một đơn có thể có nhiều lần thử thanh toán nếu lần đầu thất bại.",
+  "knowledge_objects": [
+    {
+      "id": "PAYMENT_METHODS_INQUIRY",
+      "domain": "04_payment",
+      "sub_domain": "phuong_thuc",
+      "intent": "hoi_phuong_thuc_thanh_toan",
+      "description": "Trả lời danh mục phương thức thanh toán khả dụng đang bật/tắt.",
+      "keywords": ["thanh toán", "chuyển khoản", "quét mã QR", "thanh toán bằng", "phương thức thanh toán", "hỗ trợ thanh toán"],
+      "synonyms": [
+        {"canonical": "thanh toán", "variants": ["pay", "trả tiền"]},
+        {"canonical": "chuyển khoản", "variants": ["banking", "quét QR"]}
+      ],
+      "sample_questions": ["Delippy hỗ trợ thanh toán bằng gì?", "Có thanh toán COD không?"],
+      "entities": [],
+      "required_entities": [],
+      "optional_entities": [],
+      "business_rules": [
+        "Trả lời tĩnh/động từ danh mục phương thức đang bật, không cần theo đơn cụ thể.",
+        "SePay (chuyển khoản/QR) là phương thức xác nhận đã tích hợp; danh sách COD/ví/thẻ lấy động từ hệ thống, không cố định cứng trong KB."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Gọi TOOL_PAYMENT_METHODS_LIST"},
+        {"step": 2, "action": "Trả lời bằng RT_PAYMENT_METHODS_LIST"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [
+        {"tool_id": "TOOL_PAYMENT_METHODS_LIST"}
+      ],
+      "response_templates": {
+        "success_response": "RT_PAYMENT_METHODS_LIST",
+        "failure_response": "RT_ERROR_GENERIC_FALLBACK"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [],
+      "logging": {"events": ["payment_methods_read"], "sensitivity": "high", "note": "log chi tiết hơn mức bình thường cho mọi hội thoại thuộc domain payment vì liên quan tiền thật"},
+      "analytics_tags": ["payment_methods_inquiry_rate"],
+      "cache_policy": {"cacheable": true, "reason": "danh mục phương thức ít thay đổi trong ngày"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": []
+    },
+    {
+      "id": "PAYMENT_STATUS_CHECK",
+      "domain": "04_payment",
+      "sub_domain": "trang_thai_giao_dich",
+      "intent": "kiem_tra_trang_thai_thanh_toan",
+      "description": "Kiểm tra trạng thái giao dịch thanh toán của một đơn.",
+      "keywords": [],
+      "synonyms": [
+        {"canonical": "thanh toán", "variants": ["pay", "trả tiền"]}
+      ],
+      "sample_questions": ["Đơn tôi thanh toán thành công chưa?"],
+      "entities": ["ma_don_hang"],
+      "required_entities": ["ma_don_hang"],
+      "optional_entities": [],
+      "business_rules": [
+        "Kiểm tra đơn có ở trạng thái chờ thanh toán trước khi trả lời 'đang chờ xác nhận' (tránh trả lời sai nếu đơn thực ra đã completed từ lâu)."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Xác định đơn qua ma_don_hang"},
+        {"step": 2, "action": "Gọi TOOL_ORDER_PAYMENT_STATUS"},
+        {"step": 3, "action": "Map trạng thái sang template (RT_PAYMENT_PENDING_CONFIRMATION / RT_PAYMENT_SUCCESS)"}
+      ],
+      "validation_rules": [
+        "Chỉ tra cứu trạng thái thanh toán của đơn thuộc chính người dùng đang chat."
+      ],
+      "api_mapping": [
+        {"tool_id": "TOOL_ORDER_PAYMENT_STATUS"}
+      ],
+      "response_templates": {
+        "success_response": "RT_PAYMENT_SUCCESS",
+        "failure_response": "RT_PAYMENT_PENDING_CONFIRMATION"
+      },
+      "follow_up_questions": ["Bạn cho mình xin mã đơn hàng nhé?"],
+      "escalation_rules": [],
+      "logging": {"events": ["payment_status_read"], "sensitivity": "high"},
+      "analytics_tags": ["payment_failure_rate_by_method", "payment_confirmation_delay_avg"],
+      "cache_policy": {"cacheable": false, "reason": "trạng thái động"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["da_thanh_toan_nhung_don_chua_len", "thanh_toan_that_bai"]
+    },
+    {
+      "id": "PAYMENT_PAID_BUT_ORDER_NOT_UPDATED",
+      "domain": "04_payment",
+      "sub_domain": "doi_soat",
+      "intent": "da_thanh_toan_nhung_don_chua_len",
+      "description": "Khách đã chuyển khoản nhưng đơn chưa cập nhật trạng thái tương ứng.",
+      "keywords": ["đã chuyển tiền mà chưa lên đơn"],
+      "synonyms": [
+        {"canonical": "chuyển khoản", "variants": ["banking", "quét QR"]}
+      ],
+      "sample_questions": ["Tôi chuyển khoản rồi mà đơn vẫn chưa lên"],
+      "entities": ["ma_don_hang", "so_tien", "thoi_diem_thanh_toan"],
+      "required_entities": ["ma_don_hang"],
+      "optional_entities": ["so_tien", "thoi_diem_thanh_toan"],
+      "business_rules": [
+        "Nếu hệ thống đã ghi nhận thành công nhưng UI đơn chưa refresh: giải thích và đề xuất tải lại/chờ vài phút (đồng bộ có độ trễ).",
+        "Nếu hệ thống chưa ghi nhận: hỏi thêm thông tin xác nhận từ ngân hàng (thời gian chuyển, số tiền) để CSKH đối soát — đối soát giao dịch ngân hàng là việc chatbot không tự làm được."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Xác định đơn (mã đơn hoặc đơn gần nhất chưa thanh toán)"},
+        {"step": 2, "action": "Gọi TOOL_ORDER_PAYMENT_STATUS"},
+        {"step": 3, "action": "Nếu đã ghi nhận thành công: RT_PAYMENT_PENDING_CONFIRMATION giải thích độ trễ đồng bộ"},
+        {"step": 4, "action": "Nếu chưa ghi nhận: hỏi thời gian chuyển + số tiền, sau đó escalate kèm entity đã thu thập"}
+      ],
+      "validation_rules": [
+        "Số tiền/mã giao dịch phải đúng định dạng trước khi dùng làm entity đối soát."
+      ],
+      "api_mapping": [
+        {"tool_id": "TOOL_ORDER_PAYMENT_STATUS"},
+        {"tool_id": "TOOL_CONTACT_TICKET_CREATE"}
+      ],
+      "response_templates": {
+        "success_response": "RT_PAYMENT_PENDING_CONFIRMATION",
+        "failure_response": "RT_PAYMENT_DISPUTE_ESCALATE"
+      },
+      "follow_up_questions": ["Bạn chuyển khoản lúc mấy giờ và số tiền bao nhiêu?"],
+      "escalation_rules": [
+        {"trigger": "hệ thống chưa ghi nhận giao dịch dù khách khẳng định đã chuyển", "priority": "high", "action": "escalate kèm entity đã thu thập để CSKH đối soát ngân hàng"}
+      ],
+      "logging": {"events": ["payment_reconciliation_requested"], "sensitivity": "high", "note": "lưu kèm entity số tiền/mã giao dịch để phục vụ đối soát sau này"},
+      "analytics_tags": ["payment_sync_delay_avg", "payment_dispute_frequency"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "high",
+      "confidence_threshold": "TODO",
+      "related_intents": ["thanh_toan_that_bai", "bi_tru_tien_hai_lan"]
+    },
+    {
+      "id": "PAYMENT_FAILED",
+      "domain": "04_payment",
+      "sub_domain": "loi_giao_dich",
+      "intent": "thanh_toan_that_bai",
+      "description": "Xử lý thanh toán thất bại — phân biệt hết hạn phiên thanh toán vs lỗi kỹ thuật không rõ nguyên nhân.",
+      "keywords": ["thanh toán lỗi"],
+      "synonyms": [
+        {"canonical": "thất bại (giao dịch/thao tác)", "variants": ["lỗi", "không thành công"]}
+      ],
+      "sample_questions": ["Thanh toán của tôi bị lỗi"],
+      "entities": ["ma_don_hang"],
+      "required_entities": ["ma_don_hang"],
+      "optional_entities": [],
+      "business_rules": [
+        "Nếu thất bại do hết hạn phiên thanh toán: hướng dẫn thử lại từ đầu.",
+        "Nếu thất bại không rõ nguyên nhân kỹ thuật: escalate."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Xác định đơn qua ma_don_hang"},
+        {"step": 2, "action": "Gọi TOOL_ORDER_PAYMENT_STATUS"},
+        {"step": 3, "action": "Nếu hết hạn phiên: RT_PAYMENT_RETRY_EXPIRED"},
+        {"step": 4, "action": "Nếu không rõ nguyên nhân: escalate"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [
+        {"tool_id": "TOOL_ORDER_PAYMENT_STATUS"}
+      ],
+      "response_templates": {
+        "success_response": "RT_PAYMENT_RETRY_EXPIRED",
+        "failure_response": "RT_PAYMENT_DISPUTE_ESCALATE"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [
+        {"trigger": "thất bại không rõ nguyên nhân kỹ thuật", "priority": "normal", "action": "escalate"}
+      ],
+      "logging": {"events": ["payment_failure_read"], "sensitivity": "high"},
+      "analytics_tags": ["payment_failure_rate_by_method"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["kiem_tra_trang_thai_thanh_toan"]
+    },
+    {
+      "id": "PAYMENT_VAT_INVOICE",
+      "domain": "04_payment",
+      "sub_domain": "hoa_don",
+      "intent": "hoi_hoa_don_vat",
+      "description": "Tra cứu/xuất hoá đơn VAT cho đơn hàng đã mua.",
+      "keywords": ["hoá đơn"],
+      "synonyms": [],
+      "sample_questions": ["Tôi muốn xuất hoá đơn VAT cho đơn này"],
+      "entities": ["ma_don_hang"],
+      "required_entities": ["ma_don_hang"],
+      "optional_entities": [],
+      "business_rules": [
+        "MISSING_FROM_DOCUMENT — chưa có API tự động; nếu chưa có, escalate theo mục 15 của 04_payment."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Xác định đơn qua ma_don_hang"},
+        {"step": 2, "action": "Gọi TOOL_PAYMENT_VAT_INVOICE nếu khả dụng"},
+        {"step": 3, "action": "Nếu chưa khả dụng: escalate"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [
+        {"tool_id": "TOOL_PAYMENT_VAT_INVOICE"}
+      ],
+      "response_templates": {
+        "success_response": "MISSING_FROM_DOCUMENT",
+        "failure_response": "RT_ESCALATE_GENERIC"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [
+        {"trigger": "yêu cầu xuất hoá đơn VAT nếu chưa có API tự động", "priority": "normal", "action": "escalate"}
+      ],
+      "logging": {"events": ["vat_invoice_requested"], "sensitivity": "high"},
+      "analytics_tags": ["vat_invoice_request_rate"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": []
+    },
+    {
+      "id": "PAYMENT_DOUBLE_CHARGE",
+      "domain": "04_payment",
+      "sub_domain": "tranh_chap",
+      "intent": "bi_tru_tien_hai_lan",
+      "description": "Khách báo bị trừ tiền hai lần cho cùng một giao dịch/đơn.",
+      "keywords": ["bị trừ tiền"],
+      "synonyms": [
+        {"canonical": "bị trừ tiền", "variants": ["bị charge", "bị trừ"]}
+      ],
+      "sample_questions": ["Sao tôi bị trừ tiền hai lần?"],
+      "entities": ["ma_don_hang", "so_tien", "thoi_diem_thanh_toan"],
+      "required_entities": ["ma_don_hang"],
+      "optional_entities": ["so_tien", "thoi_diem_thanh_toan"],
+      "business_rules": [
+        "Luôn là trường hợp nhạy cảm liên quan tiền thật của khách — chatbot chỉ thu thập bằng chứng (thời gian, số tiền, số lần) rồi escalate ngay, không tự kết luận đúng/sai.",
+        "Với các case liên quan tranh chấp tiền, luôn kèm theo bước xác thực danh tính mạnh hơn (đã đăng nhập + đúng chủ đơn) trước khi tiết lộ chi tiết số tiền/thời gian giao dịch."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Xác thực danh tính mạnh (đã đăng nhập + đúng chủ đơn)"},
+        {"step": 2, "action": "Thu thập bằng chứng: thời gian, số tiền, số lần bị trừ"},
+        {"step": 3, "action": "Gọi TOOL_PAYMENT_ATTEMPT_HISTORY nếu khả dụng để đối chiếu sơ bộ"},
+        {"step": 4, "action": "Escalate ngay, không tự kết luận đúng/sai"}
+      ],
+      "validation_rules": [
+        "Số tiền/mã giao dịch người dùng cung cấp phải đúng định dạng trước khi dùng làm entity đối soát."
+      ],
+      "api_mapping": [
+        {"tool_id": "TOOL_PAYMENT_ATTEMPT_HISTORY"},
+        {"tool_id": "TOOL_CONTACT_TICKET_CREATE"}
+      ],
+      "response_templates": {
+        "success_response": "RT_PAYMENT_DISPUTE_ESCALATE",
+        "failure_response": "RT_PAYMENT_DISPUTE_ESCALATE"
+      },
+      "follow_up_questions": ["Bạn bị trừ tiền vào thời gian nào và với số tiền bao nhiêu, mấy lần?"],
+      "escalation_rules": [
+        {"trigger": "mọi khiếu nại bị trừ tiền hai lần", "priority": "high", "action": "escalate ngay, luôn"}
+      ],
+      "logging": {"events": ["double_charge_reported", "escalated"], "sensitivity": "high"},
+      "analytics_tags": ["double_charge_complaint_frequency_by_method"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "critical",
+      "confidence_threshold": "TODO",
+      "related_intents": ["da_thanh_toan_nhung_don_chua_len"]
+    }
+  ]
+}

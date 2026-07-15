@@ -10,7 +10,7 @@ _EXAMPLES_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "promp
 # How many similarity-selected examples to add on top of the fixed anchors
 # (see _load_examples' own note) - tunable without touching the examples
 # data or the selection logic itself.
-_DYNAMIC_K = 3
+_DYNAMIC_K = 2
 
 _examples: Optional[List[Dict[str, Any]]] = None
 _pool_embeddings: Optional[List[List[float]]] = None
@@ -56,15 +56,20 @@ def select_examples(message_vector: Optional[List[float]]) -> str:
     already computed for the semantic parse cache - see
     orchestrator.py/parser.py's query_vector_lazy, reused here for free).
 
-    Cuts parser_prompt.txt's fixed few-shot cost from ~3,900 tokens (all 21
-    examples, every turn) to ~1,700 (anchors + 3), while the anchor set
-    keeps the model from losing coverage of edge cases (a bare "ok" vs "có"
-    confirming a pending question, "tìm hiểu về X" reading as CHITCHAT not
-    SEARCH...) that a pure top-K-by-similarity selection could drop if the
-    live message doesn't happen to embed close to that exact stored
-    example's wording. If `message_vector` is unavailable (embedding
-    failed), only the anchors are used - still full boundary coverage, just
-    without the topic-specific extras."""
+    Cuts parser_prompt.txt's fixed few-shot cost from ~3,900 tokens (all 23
+    examples, every turn) to ~1,000-1,100 (7 anchors + 2 dynamic), while the
+    anchor set keeps the model from losing coverage of the boundaries that
+    are genuinely hard for embedding similarity alone to generalize (a bare
+    "ok" vs "có" confirming a pending question - same text, different
+    history; "tìm hiểu về X" reading as CHITCHAT not SEARCH; position-based
+    COMPARE). Boundaries that are either more prototypical (an explicit
+    "iPhone 16 128GB"-style query, a plain "cảm ơn") or redundant with
+    another anchor (a second purpose-reply domain) were demoted to
+    "anchor": false rather than deleted - they stay in the pool for dynamic
+    selection AND in try_embedding_fastpath's matching corpus (see below),
+    just without the guarantee of always being included. If `message_vector`
+    is unavailable (embedding failed), only the anchors are used - still the
+    hard-boundary coverage, just without the topic-specific extras."""
     anchors = _anchors()
     selected = list(anchors)
 

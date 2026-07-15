@@ -2,7 +2,7 @@ import re
 from typing import Any, Dict, List, Optional
 from app.understanding.query_normalizer import query_normalizer
 from app.understanding.intent_classifier import intent_classifier, is_advisory_query, REFERENCE_MARKERS, is_no_preference_reply
-from app.understanding.few_shot_selector import select_examples
+from app.understanding.few_shot_selector import select_examples, try_embedding_fastpath
 from app.understanding.entity_extractor import entity_extractor
 from app.chat.lazy import Lazy
 from app.client.llm_client import llm_client_wrapper
@@ -238,8 +238,34 @@ class QueryParser:
         # must still never touch the global cache.
         skip_semantic_cache = is_reference or not has_own_content or is_no_preference_reply(normalized)
         query_vector = await query_vector_lazy.get() if query_vector_lazy and not skip_semantic_cache else None
+
+        # 4.5 Embedding fast-path for CHITCHAT/SOCIAL phrasing classify()'s
+        # regex list doesn't cover (paraphrases of a joke/off-topic ask/social
+        # nicety) - matches against the same example pool via the local
+        # (free) Nomic embedding, gated by the SAME skip_semantic_cache guard
+        # above: a short/reference/no-preference message has too little
+        # embedding signal to trust against ANY global pool, chitchat
+        # examples included (see the "dưới 500k" false-match precedent right
+        # above). A confident match returns a full ShoppingContext straight
+        # from that example's own output - response_formatter already renders
+        # CHITCHAT/SOCIAL/GREETING as a $0 deterministic reply, so this skips
+        # the ~4000-token AI Parser call entirely with no other change needed.
+        if query_vector and not skip_semantic_cache:
+            fastpath_ctx = try_embedding_fastpath(query_vector)
+            if fastpath_ctx:
+                print(f"  - Embedding fast-path -> Intent: {fastpath_ctx.intent}, Sub Intent: {fastpath_ctx.sub_intent}")
+                return fastpath_ctx
+
         if query_vector and not skip_semantic_cache:
             cached = await parse_cache_repo.lookup(query_vector)
+            if cached:
+                cp = cached["parse"]
+                # Safety Guard: If both current and cached queries have different categories, reject the cache hit
+                cache_cat = cp.get("category")
+                curr_cat = entities.get("category")
+                if cache_cat and curr_cat and cache_cat.strip().lower() != curr_cat.strip().lower():
+                    print(f"  - [Parser] Rejecting Semantic cache HIT due to category mismatch: cache={cache_cat!r}, current={curr_cat!r}")
+                    cached = None
             if cached:
                 cp = cached["parse"]
                 print(f"  - [Parser] Semantic cache HIT - reusing prior parse "
@@ -259,6 +285,16 @@ class QueryParser:
                 # silently attaches a subcategory from a DIFFERENT category
                 # than the one actually being searched.
                 cache_category = cp.get("category")
+                
+                # Prevent brand drop during cache hits: if the deterministic extractor failed to
+                # detect the brand, but the cached parse contains a brand, we can safely fall
+                # back to it ONLY if the brand name is explicitly mentioned in the query text.
+                brand = entities["brand"]
+                if not brand and cp.get("brand"):
+                    cached_brand = cp["brand"].strip().lower()
+                    if re.search(rf"\b{re.escape(cached_brand)}\b", normalized):
+                        brand = cp["brand"]
+
                 ctx = ShoppingContext(
                     intent=cp.get("intent", "SEARCH"),
                     sub_intent=cp.get("sub_intent"),
@@ -268,11 +304,12 @@ class QueryParser:
                     query_q=cp.get("query_q"),
                     expanded_queries=list(cp.get("expanded_queries") or []),
                     purpose=cp.get("purpose"),
-                    brand=entities["brand"],
+                    brand=brand,
                     price_min=entities["price_min"],
                     price_max=entities["price_max"],
                 )
                 ctx._parse_source = "cache"
+
                 print(f"  - Cache-hit Parse Result -> Intent: {ctx.intent}, Brand: {ctx.brand}, Category: {ctx.category}, PriceMin: {ctx.price_min}, PriceMax: {ctx.price_max}, Core Query q: '{ctx.query_q}', Expanded: {ctx.expanded_queries}")
                 return ctx
 

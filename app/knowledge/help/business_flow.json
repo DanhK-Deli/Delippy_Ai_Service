@@ -1,0 +1,104 @@
+{
+  "_domain_role": "18_business_flow — Danh mục và cấu hình các luồng hội thoại. Mục lục trung tâm của mọi business flow đã mô tả ở mục 9 của domain 01-14 — không định nghĩa lại nội dung, chỉ KẾT NỐI intent/entity (domain gốc) với tool (tool.json) và template (response_template.json) thành một kịch bản hoàn chỉnh, và tổng hợp giám sát toàn cảnh.",
+  "_source": "docs/chatbot-cskh-knowledge-base-design.md#18_business_flow",
+  "_validation_rules": [
+    "Mọi luồng đều phải có ít nhất một điều kiện escalate rõ ràng (không được để một luồng đi vào ngõ cụt mà không có lối thoát sang CSKH) — mục 13 của 18_business_flow.",
+    "Không được có luồng mồ côi (được một intent trỏ tới nhưng không tồn tại định nghĩa) — mục 13 của 18_business_flow."
+  ],
+  "_escalation_path_audit": {
+    "note": "flow_id có has_dedicated_escalation_rule=false không có escalation_rules riêng trong file domain gốc — lối thoát CSKH của các luồng này chỉ là failure_response chung (RT_ERROR_GENERIC_FALLBACK/RT_ESCALATE_GENERIC), chưa có điều kiện escalate tường minh theo đúng yêu cầu validation ở trên. Cần đội phát triển bổ sung điều kiện escalate rõ ràng cho các flow này, KHÔNG suy diễn thêm nghiệp vụ ở đây.",
+    "flows_missing_dedicated_escalation_rule": [
+      "COMPANY_INTRO", "COMPANY_BUSINESS_MODEL",
+      "ACCOUNT_REGISTER", "ACCOUNT_SOCIAL_LINK", "ACCOUNT_STATUS_CHECK",
+      "ORDER_HISTORY", "ORDER_WRONG_ITEM_OR_QUANTITY",
+      "PAYMENT_METHODS_INQUIRY",
+      "RETURN_WRONG_PRODUCT", "RETURN_NOT_AS_DESCRIBED",
+      "PROFILE_DEFAULT_ADDRESS_CHANGE",
+      "VOUCHER_HOW_TO_GET",
+      "POLICY_TERMS_INQUIRY",
+      "SECURITY_PERSONAL_DATA_INQUIRY",
+      "WARRANTY_CHANNEL_INQUIRY", "WARRANTY_EXPIRED_NOTICE",
+      "CONTACT_CHANNELS_INQUIRY", "CONTACT_WORKING_HOURS_INQUIRY",
+      "FAQ_GENERAL"
+    ]
+  },
+  "flows": [
+    {"id": "COMPANY_INTRO", "domain": "01_company", "source_file": "company.json", "triggering_intents": ["hoi_gioi_thieu_cong_ty"], "tools_used": [], "templates_used": ["RT_COMPANY_INTRO"], "version": "TODO"},
+    {"id": "COMPANY_LEGAL", "domain": "01_company", "source_file": "company.json", "triggering_intents": ["hoi_phap_ly_cong_ty"], "tools_used": [], "templates_used": ["RT_COMPANY_LEGAL"], "version": "TODO"},
+    {"id": "COMPANY_BUSINESS_MODEL", "domain": "01_company", "source_file": "company.json", "triggering_intents": ["hoi_mo_hinh_hoat_dong"], "tools_used": [], "templates_used": ["RT_COMPANY_INTRO"], "version": "TODO"},
+    {"id": "COMPANY_VERIFY_OFFICIAL_CHANNEL", "domain": "01_company", "source_file": "company.json", "triggering_intents": ["xac_minh_kenh_chinh_thuc"], "tools_used": [], "templates_used": ["RT_COMPANY_VERIFY_OFFICIAL_CHANNEL"], "version": "TODO"},
+
+    {"id": "ACCOUNT_REGISTER", "domain": "02_account", "source_file": "account.json", "triggering_intents": ["dang_ky_tai_khoan"], "tools_used": ["TOOL_ACCOUNT_LOOKUP_BY_CONTACT"], "templates_used": [], "version": "TODO"},
+    {"id": "ACCOUNT_LOGIN_ERROR", "domain": "02_account", "source_file": "account.json", "triggering_intents": ["dang_nhap_loi"], "tools_used": ["TOOL_ACCOUNT_LOOKUP_BY_CONTACT"], "templates_used": ["RT_ASK_MORE_INFO_GENERIC"], "version": "TODO"},
+    {"id": "ACCOUNT_FORGOT_PASSWORD", "domain": "02_account", "source_file": "account.json", "triggering_intents": ["quen_mat_khau"], "tools_used": ["TOOL_ACCOUNT_LOOKUP_BY_CONTACT", "TOOL_ACCOUNT_RESEND_OTP"], "templates_used": ["RT_ACCOUNT_OTP_RESEND_GUIDE"], "version": "TODO"},
+    {"id": "ACCOUNT_OTP_NOT_RECEIVED", "domain": "02_account", "source_file": "account.json", "triggering_intents": ["khong_nhan_duoc_otp"], "tools_used": ["TOOL_ACCOUNT_RESEND_OTP"], "templates_used": ["RT_ACCOUNT_OTP_RESEND_GUIDE"], "version": "TODO"},
+    {"id": "ACCOUNT_LOCKED", "domain": "02_account", "source_file": "account.json", "triggering_intents": ["tai_khoan_bi_khoa"], "tools_used": ["TOOL_ACCOUNT_STATUS_LOOKUP"], "templates_used": ["RT_ACCOUNT_LOCKED_STATUS"], "version": "TODO"},
+    {"id": "ACCOUNT_DELETE_REQUEST", "domain": "02_account", "source_file": "account.json", "triggering_intents": ["yeu_cau_xoa_tai_khoan"], "tools_used": ["TOOL_ACCOUNT_DELETE_REQUEST", "TOOL_CONTACT_TICKET_CREATE"], "templates_used": ["RT_ACCOUNT_DELETE_REQUEST_ACK"], "version": "TODO"},
+    {"id": "ACCOUNT_SOCIAL_LINK", "domain": "02_account", "source_file": "account.json", "triggering_intents": ["lien_ket_mang_xa_hoi"], "tools_used": [], "templates_used": ["RT_ACCOUNT_SOCIAL_LINK_GUIDE"], "version": "TODO"},
+    {"id": "ACCOUNT_STATUS_CHECK", "domain": "02_account", "source_file": "account.json", "triggering_intents": ["kiem_tra_trang_thai_tai_khoan"], "tools_used": ["TOOL_ACCOUNT_STATUS_LOOKUP"], "templates_used": [], "version": "TODO"},
+
+    {"id": "ORDER_LOOKUP", "domain": "03_order", "source_file": "order.json", "triggering_intents": ["tra_cuu_don_hang"], "tools_used": ["TOOL_ORDER_DETAIL", "TOOL_ORDER_LIST"], "templates_used": ["RT_ORDER_STATUS_PENDING", "RT_ORDER_NOT_FOUND"], "version": "TODO"},
+    {"id": "ORDER_STATUS_CHECK", "domain": "03_order", "source_file": "order.json", "triggering_intents": ["kiem_tra_trang_thai_don"], "tools_used": ["TOOL_ORDER_DETAIL"], "templates_used": ["RT_ORDER_STATUS_PENDING"], "version": "TODO"},
+    {"id": "ORDER_HISTORY", "domain": "03_order", "source_file": "order.json", "triggering_intents": ["xem_lich_su_don"], "tools_used": ["TOOL_ORDER_LIST"], "templates_used": [], "version": "TODO"},
+    {"id": "ORDER_CANCEL", "domain": "03_order", "source_file": "order.json", "triggering_intents": ["huy_don_hang"], "tools_used": ["TOOL_ORDER_DETAIL", "TOOL_ORDER_CANCEL"], "templates_used": ["RT_ORDER_CANCEL_SUCCESS", "RT_ORDER_CANCEL_REJECTED", "RT_DP_POINTS_NOT_REFUNDABLE"], "version": "TODO"},
+    {"id": "ORDER_NOT_CONFIRMED_TOO_LONG", "domain": "03_order", "source_file": "order.json", "triggering_intents": ["sao_don_chua_duoc_xac_nhan"], "tools_used": ["TOOL_ORDER_DETAIL"], "templates_used": ["RT_ORDER_STATUS_PENDING"], "version": "TODO"},
+    {"id": "ORDER_WRONG_ITEM_OR_QUANTITY", "domain": "03_order", "source_file": "order.json", "triggering_intents": ["don_hang_bi_sai_sot"], "tools_used": ["TOOL_ORDER_DETAIL"], "templates_used": [], "version": "TODO"},
+    {"id": "ORDER_NOT_FOUND_INTENT", "domain": "03_order", "source_file": "order.json", "triggering_intents": ["khong_thay_don_hang"], "tools_used": ["TOOL_ORDER_LIST"], "templates_used": ["RT_ORDER_NOT_FOUND"], "version": "TODO"},
+
+    {"id": "PAYMENT_METHODS_INQUIRY", "domain": "04_payment", "source_file": "payment.json", "triggering_intents": ["hoi_phuong_thuc_thanh_toan"], "tools_used": ["TOOL_PAYMENT_METHODS_LIST"], "templates_used": ["RT_PAYMENT_METHODS_LIST"], "version": "TODO"},
+    {"id": "PAYMENT_STATUS_CHECK", "domain": "04_payment", "source_file": "payment.json", "triggering_intents": ["kiem_tra_trang_thai_thanh_toan"], "tools_used": ["TOOL_ORDER_PAYMENT_STATUS"], "templates_used": ["RT_PAYMENT_SUCCESS", "RT_PAYMENT_PENDING_CONFIRMATION"], "version": "TODO"},
+    {"id": "PAYMENT_PAID_BUT_ORDER_NOT_UPDATED", "domain": "04_payment", "source_file": "payment.json", "triggering_intents": ["da_thanh_toan_nhung_don_chua_len"], "tools_used": ["TOOL_ORDER_PAYMENT_STATUS", "TOOL_CONTACT_TICKET_CREATE"], "templates_used": ["RT_PAYMENT_PENDING_CONFIRMATION", "RT_PAYMENT_DISPUTE_ESCALATE"], "version": "TODO"},
+    {"id": "PAYMENT_FAILED", "domain": "04_payment", "source_file": "payment.json", "triggering_intents": ["thanh_toan_that_bai"], "tools_used": ["TOOL_ORDER_PAYMENT_STATUS"], "templates_used": ["RT_PAYMENT_RETRY_EXPIRED", "RT_PAYMENT_DISPUTE_ESCALATE"], "version": "TODO"},
+    {"id": "PAYMENT_VAT_INVOICE", "domain": "04_payment", "source_file": "payment.json", "triggering_intents": ["hoi_hoa_don_vat"], "tools_used": ["TOOL_PAYMENT_VAT_INVOICE"], "templates_used": [], "version": "TODO"},
+    {"id": "PAYMENT_DOUBLE_CHARGE", "domain": "04_payment", "source_file": "payment.json", "triggering_intents": ["bi_tru_tien_hai_lan"], "tools_used": ["TOOL_PAYMENT_ATTEMPT_HISTORY", "TOOL_CONTACT_TICKET_CREATE"], "templates_used": ["RT_PAYMENT_DISPUTE_ESCALATE"], "version": "TODO"},
+
+    {"id": "SHIPPING_TRACKING_LOOKUP", "domain": "05_shipping", "source_file": "shipping.json", "triggering_intents": ["tra_cuu_van_don"], "tools_used": ["TOOL_SHIPPING_TRACKING_DETAIL", "TOOL_ORDER_DETAIL"], "templates_used": ["RT_SHIP_STAGE_5_IN_TRANSIT_WITH_ETA", "RT_ORDER_NOT_FOUND"], "version": "TODO"},
+    {"id": "SHIPPING_WHERE_IS_MY_PACKAGE", "domain": "05_shipping", "source_file": "shipping.json", "triggering_intents": ["hang_dang_o_dau"], "tools_used": ["TOOL_SHIPPING_TRACKING_DETAIL", "TOOL_ORDER_DETAIL"], "templates_used": ["RT_SHIP_STAGE_5_IN_TRANSIT_WITH_ETA"], "version": "TODO"},
+    {"id": "SHIPPING_ETA_INQUIRY", "domain": "05_shipping", "source_file": "shipping.json", "triggering_intents": ["giao_thieu_du_kien_bao_lau"], "tools_used": ["TOOL_SHIPPING_TRACKING_DETAIL"], "templates_used": ["RT_SHIP_STAGE_5_IN_TRANSIT_WITH_ETA", "RT_SHIP_STAGE_5_IN_TRANSIT_NO_ETA"], "version": "TODO"},
+    {"id": "SHIPPING_DELIVERY_FAILED", "domain": "05_shipping", "source_file": "shipping.json", "triggering_intents": ["giao_that_bai"], "tools_used": ["TOOL_SHIPPING_FAILURE_REASON"], "templates_used": ["RT_SHIP_STAGE_6_DELIVERY_FAILED"], "version": "TODO"},
+    {"id": "SHIPPING_CHANGE_ADDRESS", "domain": "05_shipping", "source_file": "shipping.json", "triggering_intents": ["doi_dia_chi_giao"], "tools_used": ["TOOL_SHIPPING_ADDRESS_CHANGE_REQUEST"], "templates_used": [], "version": "TODO"},
+    {"id": "SHIPPING_NOT_RECEIVED_BUT_MARKED_DELIVERED", "domain": "05_shipping", "source_file": "shipping.json", "triggering_intents": ["chua_nhan_duoc_hang_du_he_thong_bao_da_giao"], "tools_used": ["TOOL_ORDER_DETAIL", "TOOL_CONTACT_TICKET_CREATE"], "templates_used": ["RT_SHIP_NOT_RECEIVED_BUT_SYSTEM_SAYS_DELIVERED"], "version": "TODO"},
+
+    {"id": "RETURN_REQUEST_CREATE", "domain": "06_return_refund", "source_file": "return_refund.json", "triggering_intents": ["yeu_cau_doi_tra"], "tools_used": ["TOOL_RETURN_REQUEST_CREATE_LOCAL", "TOOL_RETURN_EVIDENCE_UPLOAD", "TOOL_CONTACT_TICKET_CREATE"], "templates_used": ["RT_RETURN_REQUEST_CREATED", "RT_RETURN_WINDOW_REMINDER"], "version": "TODO"},
+    {"id": "REFUND_REQUEST_NO_PHYSICAL_RETURN", "domain": "06_return_refund", "source_file": "return_refund.json", "triggering_intents": ["yeu_cau_hoan_tien"], "tools_used": ["TOOL_CONTACT_TICKET_CREATE"], "templates_used": ["RT_RETURN_REQUEST_CREATED"], "version": "TODO"},
+    {"id": "RETURN_STATUS_CHECK", "domain": "06_return_refund", "source_file": "return_refund.json", "triggering_intents": ["kiem_tra_trang_thai_doi_tra"], "tools_used": ["TOOL_RETURN_REQUEST_STATUS", "TOOL_REFUND_STATUS"], "templates_used": ["RT_RETURN_STATUS_UPDATE", "RT_RETURN_REJECTED"], "version": "TODO"},
+    {"id": "RETURN_PRODUCT_DEFECTIVE", "domain": "06_return_refund", "source_file": "return_refund.json", "triggering_intents": ["san_pham_bi_loi"], "tools_used": ["TOOL_RETURN_REQUEST_CREATE_LOCAL", "TOOL_RETURN_EVIDENCE_UPLOAD"], "templates_used": ["RT_RETURN_REQUEST_CREATED", "RT_RETURN_EVIDENCE_MISSING"], "version": "TODO"},
+    {"id": "RETURN_WRONG_PRODUCT", "domain": "06_return_refund", "source_file": "return_refund.json", "triggering_intents": ["giao_sai_san_pham"], "tools_used": ["TOOL_RETURN_REQUEST_CREATE_LOCAL"], "templates_used": ["RT_RETURN_REQUEST_CREATED"], "version": "TODO"},
+    {"id": "RETURN_NOT_AS_DESCRIBED", "domain": "06_return_refund", "source_file": "return_refund.json", "triggering_intents": ["khong_dung_mo_ta"], "tools_used": ["TOOL_RETURN_REQUEST_CREATE_LOCAL", "TOOL_RETURN_EVIDENCE_UPLOAD"], "templates_used": ["RT_RETURN_REQUEST_CREATED", "RT_RETURN_EVIDENCE_MISSING"], "version": "TODO"},
+    {"id": "RETURN_REQUEST_CANCEL", "domain": "06_return_refund", "source_file": "return_refund.json", "triggering_intents": ["huy_yeu_cau_doi_tra"], "tools_used": ["TOOL_RETURN_REQUEST_STATUS"], "templates_used": [], "version": "TODO"},
+
+    {"id": "WARRANTY_PERIOD_INQUIRY", "domain": "07_warranty", "source_file": "warranty.json", "triggering_intents": ["hoi_thoi_han_bao_hanh"], "tools_used": ["TOOL_WARRANTY_POLICY_LOOKUP", "TOOL_WARRANTY_PURCHASE_DATE_LOOKUP"], "templates_used": ["RT_WARRANTY_ACTIVE", "RT_WARRANTY_EXPIRED"], "version": "TODO"},
+    {"id": "WARRANTY_CLAIM_REQUEST", "domain": "07_warranty", "source_file": "warranty.json", "triggering_intents": ["yeu_cau_bao_hanh"], "tools_used": ["TOOL_WARRANTY_POLICY_LOOKUP", "TOOL_WARRANTY_PURCHASE_DATE_LOOKUP"], "templates_used": ["RT_WARRANTY_ACTIVE", "RT_WARRANTY_EXPIRED"], "version": "TODO"},
+    {"id": "WARRANTY_CHANNEL_INQUIRY", "domain": "07_warranty", "source_file": "warranty.json", "triggering_intents": ["bao_hanh_o_dau"], "tools_used": [], "templates_used": ["RT_WARRANTY_SELLER_RESPONSIBILITY"], "version": "TODO"},
+    {"id": "WARRANTY_EXPIRED_NOTICE", "domain": "07_warranty", "source_file": "warranty.json", "triggering_intents": ["san_pham_het_bao_hanh"], "tools_used": ["TOOL_WARRANTY_POLICY_LOOKUP", "TOOL_WARRANTY_PURCHASE_DATE_LOOKUP"], "templates_used": ["RT_WARRANTY_EXPIRED"], "version": "TODO"},
+
+    {"id": "PROFILE_UPDATE_INFO", "domain": "08_profile", "source_file": "profile.json", "triggering_intents": ["cap_nhat_thong_tin_ca_nhan"], "tools_used": ["TOOL_PROFILE_GET"], "templates_used": ["RT_PROFILE_EDIT_GUIDE"], "version": "TODO"},
+    {"id": "PROFILE_ADDRESS_BOOK", "domain": "08_profile", "source_file": "profile.json", "triggering_intents": ["them_sua_xoa_dia_chi"], "tools_used": ["TOOL_PROFILE_GET"], "templates_used": ["RT_PROFILE_EDIT_GUIDE"], "version": "TODO"},
+    {"id": "PROFILE_DEFAULT_ADDRESS_CHANGE", "domain": "08_profile", "source_file": "profile.json", "triggering_intents": ["doi_dia_chi_mac_dinh"], "tools_used": ["TOOL_PROFILE_GET"], "templates_used": ["RT_PROFILE_EDIT_GUIDE"], "version": "TODO"},
+    {"id": "PROFILE_SAVE_FAILED", "domain": "08_profile", "source_file": "profile.json", "triggering_intents": ["khong_luu_duoc_thong_tin"], "tools_used": [], "templates_used": ["RT_PROFILE_SAVE_ERROR_COMMON"], "version": "TODO"},
+
+    {"id": "VOUCHER_CONDITIONS_INQUIRY", "domain": "09_promotion", "source_file": "promotion.json", "triggering_intents": ["hoi_dieu_kien_voucher"], "tools_used": ["TOOL_PROMOTION_VOUCHER_LOOKUP"], "templates_used": ["RT_VOUCHER_CONDITIONS"], "version": "TODO"},
+    {"id": "VOUCHER_NOT_APPLICABLE", "domain": "09_promotion", "source_file": "promotion.json", "triggering_intents": ["sao_khong_ap_dung_duoc_voucher"], "tools_used": ["TOOL_PROMOTION_VOUCHER_LOOKUP"], "templates_used": ["RT_VOUCHER_REJECT_REASON"], "version": "TODO"},
+    {"id": "VOUCHER_EXPIRED", "domain": "09_promotion", "source_file": "promotion.json", "triggering_intents": ["voucher_het_han"], "tools_used": ["TOOL_PROMOTION_VOUCHER_LOOKUP"], "templates_used": ["RT_VOUCHER_REJECT_REASON"], "version": "TODO"},
+    {"id": "VOUCHER_HOW_TO_GET", "domain": "09_promotion", "source_file": "promotion.json", "triggering_intents": ["lam_sao_nhan_voucher"], "tools_used": [], "templates_used": ["RT_VOUCHER_HOW_TO_GET_NEW"], "version": "TODO"},
+
+    {"id": "POLICY_RETURN_INQUIRY", "domain": "10_policy", "source_file": "policy.json", "triggering_intents": ["hoi_chinh_sach_doi_tra"], "tools_used": [], "templates_used": ["RT_POLICY_SUMMARY"], "version": "TODO"},
+    {"id": "POLICY_SHIPPING_INQUIRY", "domain": "10_policy", "source_file": "policy.json", "triggering_intents": ["hoi_chinh_sach_van_chuyen"], "tools_used": [], "templates_used": ["RT_POLICY_SUMMARY"], "version": "TODO"},
+    {"id": "POLICY_SECURITY_INQUIRY", "domain": "10_policy", "source_file": "policy.json", "triggering_intents": ["hoi_chinh_sach_bao_mat"], "tools_used": [], "templates_used": ["RT_POLICY_SUMMARY"], "version": "TODO"},
+    {"id": "POLICY_TERMS_INQUIRY", "domain": "10_policy", "source_file": "policy.json", "triggering_intents": ["hoi_dieu_khoan_su_dung"], "tools_used": [], "templates_used": ["RT_POLICY_SUMMARY"], "version": "TODO"},
+
+    {"id": "SECURITY_CHANGE_PASSWORD", "domain": "11_security", "source_file": "security.json", "triggering_intents": ["doi_mat_khau"], "tools_used": ["TOOL_SECURITY_CHANGE_PASSWORD"], "templates_used": ["RT_SECURITY_CHANGE_PASSWORD_GUIDE"], "version": "TODO"},
+    {"id": "SECURITY_ACCOUNT_TAKEOVER_SUSPECTED", "domain": "11_security", "source_file": "security.json", "triggering_intents": ["nghi_ngo_bi_chiem_tai_khoan"], "tools_used": ["TOOL_SECURITY_LOGOUT_ALL_DEVICES", "TOOL_SECURITY_SESSION_LIST", "TOOL_CONTACT_TICKET_CREATE"], "templates_used": ["RT_SECURITY_ACCOUNT_TAKEOVER_URGENT"], "version": "TODO"},
+    {"id": "SECURITY_UNFAMILIAR_LOGIN_DETECTED", "domain": "11_security", "source_file": "security.json", "triggering_intents": ["phat_hien_dang_nhap_la"], "tools_used": ["TOOL_SECURITY_SESSION_LIST", "TOOL_SECURITY_LOGOUT_ALL_DEVICES"], "templates_used": ["RT_SECURITY_ACCOUNT_TAKEOVER_URGENT"], "version": "TODO"},
+    {"id": "SECURITY_PHISHING_REPORT", "domain": "11_security", "source_file": "security.json", "triggering_intents": ["bao_cao_lua_dao_mao_danh"], "tools_used": ["TOOL_SECURITY_PHISHING_REPORT_CREATE"], "templates_used": ["RT_SECURITY_PHISHING_REPORT_ACK", "RT_SECURITY_OFFICIAL_CHANNEL_CONFIRM"], "version": "TODO"},
+    {"id": "SECURITY_PERSONAL_DATA_INQUIRY", "domain": "11_security", "source_file": "security.json", "triggering_intents": ["hoi_bao_mat_thong_tin_ca_nhan"], "tools_used": [], "templates_used": ["RT_POLICY_SUMMARY"], "version": "TODO"},
+
+    {"id": "CONTACT_CHANNELS_INQUIRY", "domain": "12_contact", "source_file": "contact.json", "triggering_intents": ["hoi_kenh_lien_he"], "tools_used": [], "templates_used": ["RT_CONTACT_CHANNELS_LIST", "RT_CONTACT_OUTSIDE_HOURS"], "version": "TODO"},
+    {"id": "CONTACT_WANT_HUMAN", "domain": "12_contact", "source_file": "contact.json", "triggering_intents": ["muon_gap_nguoi_that"], "tools_used": ["TOOL_CONTACT_TICKET_CREATE"], "templates_used": ["RT_CONTACT_TICKET_CREATED_ACK"], "version": "TODO"},
+    {"id": "CONTACT_WORKING_HOURS_INQUIRY", "domain": "12_contact", "source_file": "contact.json", "triggering_intents": ["hoi_gio_lam_viec_tong_dai"], "tools_used": [], "templates_used": ["RT_CONTACT_CHANNELS_LIST", "RT_CONTACT_OUTSIDE_HOURS"], "version": "TODO"},
+
+    {"id": "FAQ_GENERAL", "domain": "13_faq", "source_file": "faq.json", "triggering_intents": ["hoi_faq_chung"], "tools_used": [], "templates_used": ["RT_ASK_MORE_INFO_GENERIC"], "version": "TODO"}
+  ],
+  "logging": {"events": ["flow_activated", "flow_step_reached", "flow_completed", "flow_escalated"], "sensitivity": "normal", "note": "log cấp luồng — luồng nào được kích hoạt bao nhiêu lần, dừng ở bước nào nhiều nhất trước khi hoàn tất hoặc escalate."},
+  "analytics_tags": ["flow_completion_rate_without_escalate", "flow_abandonment_rate"]
+}

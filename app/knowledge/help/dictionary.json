@@ -1,0 +1,157 @@
+{
+  "_domain_role": "16_dictionary — Từ điển thuật ngữ & chuẩn hoá ngôn ngữ. Kho từ vựng dùng chung để chuẩn hoá tiếng Việt (có dấu/không dấu, viết tắt, tiếng lóng TMĐT) trước khi vào Intent Detection. Là nguồn cấp cho field 'synonyms' của mọi Knowledge Object 01-14 — domain khác chỉ giữ tập con liên quan, không định nghĩa lại.",
+  "_source": "docs/chatbot-cskh-knowledge-base-design.md#16_dictionary, #0.3",
+  "_review_cadence": "TODO — doc đề xuất review hàng tháng do ngôn ngữ mạng xã hội Việt Nam thay đổi nhanh (mục 17 của 16_dictionary), chưa có lịch cụ thể.",
+  "terms": [
+    {
+      "canonical": "Delippy",
+      "related_domains": ["01_company"],
+      "variants": ["app Delippy", "sàn Delippy"]
+    },
+    {
+      "canonical": "công ty (đơn vị vận hành sàn)",
+      "related_domains": ["01_company"],
+      "variants": ["đơn vị vận hành", "chủ sàn"]
+    },
+    {
+      "canonical": "mã OTP",
+      "related_domains": ["02_account"],
+      "variants": ["mã xác nhận", "code"]
+    },
+    {
+      "canonical": "khoá tài khoản",
+      "related_domains": ["02_account"],
+      "variants": ["bị chặn", "bị đình chỉ", "không vào được"]
+    },
+    {
+      "canonical": "đăng nhập",
+      "related_domains": ["02_account"],
+      "variants": ["login", "vào app"]
+    },
+    {
+      "canonical": "đơn hàng",
+      "related_domains": ["03_order"],
+      "variants": ["order", "đơn"]
+    },
+    {
+      "canonical": "huỷ đơn",
+      "related_domains": ["03_order"],
+      "variants": ["cancel", "không mua nữa", "đổi ý"]
+    },
+    {
+      "canonical": "xác nhận đơn",
+      "related_domains": ["03_order"],
+      "variants": ["duyệt đơn", "seller nhận đơn"]
+    },
+    {
+      "canonical": "thanh toán",
+      "related_domains": ["04_payment"],
+      "variants": ["pay", "trả tiền"]
+    },
+    {
+      "canonical": "chuyển khoản",
+      "related_domains": ["04_payment"],
+      "variants": ["banking", "quét QR"]
+    },
+    {
+      "canonical": "bị trừ tiền",
+      "related_domains": ["04_payment"],
+      "variants": ["bị charge", "bị trừ"]
+    },
+    {
+      "canonical": "thất bại (giao dịch/thao tác)",
+      "related_domains": ["04_payment"],
+      "variants": ["lỗi", "không thành công"]
+    },
+    {
+      "canonical": "shipper",
+      "related_domains": ["05_shipping"],
+      "variants": ["người giao hàng", "đơn vị vận chuyển"]
+    },
+    {
+      "canonical": "vận đơn",
+      "related_domains": ["05_shipping"],
+      "variants": ["mã tracking", "mã theo dõi"]
+    },
+    {
+      "canonical": "giao thất bại",
+      "related_domains": ["05_shipping"],
+      "variants": ["giao không thành công", "không gặp được người nhận"]
+    },
+    {
+      "canonical": "đổi trả",
+      "related_domains": ["06_return_refund"],
+      "variants": ["return", "trả hàng hoàn tiền"]
+    },
+    {
+      "canonical": "hoàn tiền",
+      "related_domains": ["06_return_refund"],
+      "variants": ["refund", "trả lại tiền"]
+    },
+    {
+      "canonical": "hàng lỗi",
+      "related_domains": ["06_return_refund"],
+      "variants": ["hư", "hỏng", "không hoạt động"]
+    },
+    {
+      "canonical": "bảo hành",
+      "related_domains": ["07_warranty"],
+      "variants": ["warranty", "bh"]
+    },
+    {
+      "canonical": "hết hạn",
+      "related_domains": ["07_warranty", "09_promotion"],
+      "variants": ["quá hạn", "không còn hiệu lực"]
+    },
+    {
+      "canonical": "hồ sơ",
+      "related_domains": ["08_profile"],
+      "variants": ["profile", "thông tin cá nhân"]
+    },
+    {
+      "canonical": "sổ địa chỉ",
+      "related_domains": ["08_profile"],
+      "variants": ["địa chỉ giao hàng đã lưu"]
+    },
+    {
+      "canonical": "voucher",
+      "related_domains": ["09_promotion"],
+      "variants": ["mã giảm giá", "coupon", "mã ưu đãi"]
+    },
+    {
+      "canonical": "chính sách",
+      "related_domains": ["10_policy"],
+      "variants": ["quy định", "điều khoản"]
+    },
+    {
+      "canonical": "chiếm tài khoản",
+      "related_domains": ["11_security"],
+      "variants": ["hack", "bị vào trộm"]
+    },
+    {
+      "canonical": "lừa đảo",
+      "related_domains": ["11_security"],
+      "variants": ["scam", "giả mạo"]
+    },
+    {
+      "canonical": "CSKH",
+      "related_domains": ["12_contact"],
+      "variants": ["chăm sóc khách hàng", "hỗ trợ khách hàng"]
+    },
+    {
+      "canonical": "hotline",
+      "related_domains": ["12_contact"],
+      "variants": ["tổng đài", "số điện thoại hỗ trợ"]
+    }
+  ],
+  "slang_ecommerce_social_vn": {
+    "description": "Danh sách tiếng lóng đặc thù TMĐT/mạng xã hội Việt Nam nêu làm ví dụ trong Business Document, chưa có định nghĩa chuẩn hoá đầy đủ kèm theo.",
+    "source": "docs/chatbot-cskh-knowledge-base-design.md#16_dictionary, mục 2",
+    "examples_needing_definition": ["ship", "inbox", "chốt đơn", "seller", "shop"],
+    "status": "MISSING_FROM_DOCUMENT — chỉ có danh sách ví dụ, chưa có bảng ánh xạ từng từ sang khái niệm chuẩn."
+  },
+  "vn_typing_variants_examples": {
+    "description": "Ví dụ nêu trong mục 0.3 minh hoạ việc người dùng gõ không dấu/viết tắt phổ biến.",
+    "examples": ["hoan tien (= hoàn tiền)", "hủy đơn (= huỷ đơn)", "ship (= giao hàng/vận chuyển)"]
+  }
+}

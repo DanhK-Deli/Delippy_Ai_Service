@@ -1,0 +1,30 @@
+{
+  "kb_version": "0.1.0",
+  "source_document": "docs/chatbot-cskh-knowledge-base-design.md",
+  "updated_at": "2026-07-15",
+  "note": "Bump kb_version on any meaningful content change (new/removed knowledge object, changed business rule, filled-in TODO). Loader logic (app/knowledge/help/loader.py) does NOT read version numbers to decide reload - it hot-reloads a file whenever that file's mtime changes, regardless of this version string. kb_version is for humans/logs/debugging (\"which content generation is this\"), not a cache key.",
+  "domain_files": [
+    {"file": "company.json", "domain": "01_company", "knowledge_object_count": 4},
+    {"file": "account.json", "domain": "02_account", "knowledge_object_count": 8},
+    {"file": "order.json", "domain": "03_order", "knowledge_object_count": 7},
+    {"file": "payment.json", "domain": "04_payment", "knowledge_object_count": 6},
+    {"file": "shipping.json", "domain": "05_shipping", "knowledge_object_count": 6},
+    {"file": "return_refund.json", "domain": "06_return_refund", "knowledge_object_count": 7},
+    {"file": "warranty.json", "domain": "07_warranty", "knowledge_object_count": 4},
+    {"file": "profile.json", "domain": "08_profile", "knowledge_object_count": 4},
+    {"file": "promotion.json", "domain": "09_promotion", "knowledge_object_count": 4},
+    {"file": "policy.json", "domain": "10_policy", "knowledge_object_count": 4},
+    {"file": "security.json", "domain": "11_security", "knowledge_object_count": 5},
+    {"file": "contact.json", "domain": "12_contact", "knowledge_object_count": 3},
+    {"file": "faq.json", "domain": "13_faq", "knowledge_object_count": 1}
+  ],
+  "infra_files": [
+    {"file": "error_message.json", "domain": "14_error_message"},
+    {"file": "tool.json", "domain": "15_tool"},
+    {"file": "dictionary.json", "domain": "16_dictionary"},
+    {"file": "response_template.json", "domain": "17_response_template"},
+    {"file": "business_flow.json", "domain": "18_business_flow"}
+  ],
+  "disabled_intents": [],
+  "disabled_intents_note": "Intent id (knowledge_object 'id', e.g. 'RETURN_REQUEST_CANCEL') listed here is EXCLUDED from the production TODO/MISSING_FROM_DOCUMENT fail-fast check in loader.py - use this to soft-launch a domain whose content isn't finished yet without blocking the whole /help service from starting. Empty for now: nothing has shipped to production yet, so every intent is still subject to the fail-fast check the moment APP_ENV=production is set."
+}

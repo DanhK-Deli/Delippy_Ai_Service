@@ -1,0 +1,240 @@
+{
+  "_source": "docs/chatbot-cskh-knowledge-base-design.md#12_contact",
+  "_note": "Là đích đến chung của cơ chế escalation xuyên suốt toàn bộ tài liệu (mục 0.3). Không có escalation con của riêng domain này — chỉ có việc định tuyến đúng hàng đợi.",
+  "knowledge_objects": [
+    {
+      "id": "CONTACT_CHANNELS_INQUIRY",
+      "domain": "12_contact",
+      "sub_domain": "kenh_lien_he",
+      "intent": "hoi_kenh_lien_he",
+      "description": "Cung cấp danh sách kênh liên hệ CSKH theo loại vấn đề.",
+      "keywords": [
+        "hotline",
+        "tổng đài",
+        "liên hệ CSKH"
+      ],
+      "synonyms": [
+        {
+          "canonical": "CSKH",
+          "variants": [
+            "chăm sóc khách hàng",
+            "hỗ trợ khách hàng"
+          ]
+        },
+        {
+          "canonical": "hotline",
+          "variants": [
+            "tổng đài",
+            "số điện thoại hỗ trợ"
+          ]
+        }
+      ],
+      "sample_questions": [
+        "Hotline Delippy là gì?",
+        "Liên hệ CSKH ở đâu?"
+      ],
+      "entities": [
+        "loai_van_de"
+      ],
+      "required_entities": [],
+      "optional_entities": [
+        "loai_van_de"
+      ],
+      "business_rules": [
+        "Xác nhận loại vấn đề để định tuyến đúng hàng đợi trước khi cung cấp kênh phù hợp."
+      ],
+      "conversation_flow": [
+        {
+          "step": 1,
+          "action": "Xác nhận loại vấn đề (kỹ thuật/đơn hàng/thanh toán/khiếu nại) nếu chưa rõ"
+        },
+        {
+          "step": 2,
+          "action": "Cung cấp kênh phù hợp kèm giờ hoạt động — RT_CONTACT_CHANNELS_LIST"
+        },
+        {
+          "step": 3,
+          "action": "Nếu ngoài giờ: thông báo giờ mở lại và kênh dự phòng 24/7 nếu có — RT_CONTACT_OUTSIDE_HOURS"
+        }
+      ],
+      "validation_rules": [
+        "Đảm bảo loại vấn đề được gắn đúng để định tuyến hàng đợi, tránh vé bị xử lý sai đội."
+      ],
+      "api_mapping": [],
+      "response_templates": {
+        "success_response": "RT_CONTACT_CHANNELS_LIST",
+        "failure_response": "RT_CONTACT_OUTSIDE_HOURS"
+      },
+      "follow_up_questions": [
+        "Bạn cần hỗ trợ về vấn đề gì — đơn hàng, thanh toán, kỹ thuật, hay khiếu nại?"
+      ],
+      "escalation_rules": [
+        {
+          "trigger": "không xác định được loại vấn đề để định tuyến",
+          "priority": "normal",
+          "action": "định tuyến vào hàng đợi tổng quát mặc định, không chặn người dùng lại"
+        }
+      ],
+      "logging": {
+        "events": [
+          "contact_channel_shown"
+        ],
+        "sensitivity": "normal"
+      },
+      "analytics_tags": [
+        "escalate_rate_by_origin_domain",
+        "sla_actual_vs_committed_by_channel"
+      ],
+      "cache_policy": {
+        "cacheable": true,
+        "reason": "danh mục kênh liên hệ tĩnh"
+      },
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": [
+        "muon_gap_nguoi_that"
+      ]
+    },
+    {
+      "id": "CONTACT_WANT_HUMAN",
+      "domain": "12_contact",
+      "sub_domain": "escalation_dich",
+      "intent": "muon_gap_nguoi_that",
+      "description": "Người dùng chủ động muốn gặp người thật (không qua một escalation nghiệp vụ cụ thể).",
+      "keywords": [
+        "gặp nhân viên"
+      ],
+      "synonyms": [
+        {
+          "canonical": "CSKH",
+          "variants": [
+            "chăm sóc khách hàng",
+            "hỗ trợ khách hàng"
+          ]
+        }
+      ],
+      "sample_questions": [
+        "Cho tôi gặp nhân viên CSKH"
+      ],
+      "entities": [
+        "loai_van_de"
+      ],
+      "required_entities": [],
+      "optional_entities": [
+        "loai_van_de"
+      ],
+      "business_rules": [
+        "Mọi lần escalate nên kèm theo toàn bộ context đã thu thập (domain gốc, entity, lịch sử API đã gọi) để tạo ticket đầy đủ, tránh khách phải lặp lại thông tin."
+      ],
+      "conversation_flow": [
+        {
+          "step": 1,
+          "action": "Xác nhận loại vấn đề để định tuyến đúng hàng đợi"
+        },
+        {
+          "step": 2,
+          "action": "Tạo ticket qua TOOL_CONTACT_TICKET_CREATE kèm toàn bộ ngữ cảnh hội thoại"
+        },
+        {
+          "step": 3,
+          "action": "Xác nhận đã tạo ticket kèm thời gian phản hồi dự kiến — RT_CONTACT_TICKET_CREATED_ACK"
+        }
+      ],
+      "validation_rules": [
+        "Đảm bảo loại vấn đề được gắn đúng để định tuyến hàng đợi."
+      ],
+      "api_mapping": [
+        {
+          "tool_id": "TOOL_CONTACT_TICKET_CREATE"
+        }
+      ],
+      "response_templates": {
+        "success_response": "RT_CONTACT_TICKET_CREATED_ACK",
+        "failure_response": "RT_CONTACT_OUTSIDE_HOURS"
+      },
+      "follow_up_questions": [
+        "Bạn cần hỗ trợ về vấn đề gì để mình chuyển đúng bộ phận?"
+      ],
+      "escalation_rules": [
+        {
+          "trigger": "mọi yêu cầu gặp người thật",
+          "priority": "normal",
+          "action": "luôn tạo ticket, ưu tiên theo loai_van_de"
+        }
+      ],
+      "logging": {
+        "events": [
+          "human_handoff_requested",
+          "ticket_created"
+        ],
+        "sensitivity": "normal",
+        "note": "log mọi ticket được tạo kèm domain gốc/lý do escalate"
+      },
+      "analytics_tags": [
+        "escalate_rate_by_origin_domain"
+      ],
+      "cache_policy": {
+        "cacheable": false,
+        "reason": "N/A"
+      },
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": [
+        "hoi_kenh_lien_he"
+      ]
+    },
+    {
+      "id": "CONTACT_WORKING_HOURS_INQUIRY",
+      "domain": "12_contact",
+      "sub_domain": "kenh_lien_he",
+      "intent": "hoi_gio_lam_viec_tong_dai",
+      "description": "Trả lời giờ hoạt động của tổng đài/kênh CSKH.",
+      "keywords": [
+        "giờ làm việc"
+      ],
+      "synonyms": [],
+      "sample_questions": [
+        "Tổng đài Delippy làm việc giờ nào?"
+      ],
+      "entities": [],
+      "required_entities": [],
+      "optional_entities": [],
+      "business_rules": [],
+      "conversation_flow": [
+        {
+          "step": 1,
+          "action": "Trả lời giờ hoạt động — nếu đang trong giờ: nêu rõ; nếu ngoài giờ: RT_CONTACT_OUTSIDE_HOURS kèm giờ mở lại và kênh dự phòng 24/7 nếu có"
+        }
+      ],
+      "validation_rules": [],
+      "api_mapping": [],
+      "response_templates": {
+        "success_response": "RT_CONTACT_CHANNELS_LIST",
+        "failure_response": "RT_CONTACT_OUTSIDE_HOURS"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [],
+      "logging": {
+        "events": [
+          "working_hours_shown"
+        ],
+        "sensitivity": "normal"
+      },
+      "analytics_tags": [
+        "hoi_gio_lam_viec_rate"
+      ],
+      "cache_policy": {
+        "cacheable": true,
+        "reason": "giờ hoạt động ít thay đổi"
+      },
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": [
+        "hoi_kenh_lien_he"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,584 @@
+{
+  "_domain_role": "17_response_template — Kho mẫu câu trả lời dùng chung. Quản lý tập trung mọi nội dung mô tả ở mục 'Response Template' của domain 01-14, đăng ký chính thức tại đây kèm placeholder. Business Flow gọi render ở bước cuối cùng bằng template_id.",
+  "_source": "docs/chatbot-cskh-knowledge-base-design.md#17_response_template",
+  "_situation_types": ["success", "pending", "failure", "rejected", "escalate", "ask_more_info", "generic_fallback"],
+  "_render_fallback_rule": "Nếu template thiếu biến số do domain gọi cung cấp sai/thiếu dữ liệu, không bao giờ hiển thị lỗi render thô cho người dùng — luôn render RT_RENDER_FALLBACK_GENERIC thay thế.",
+  "templates": [
+    {
+      "id": "RT_COMPANY_INTRO",
+      "domain": "01_company",
+      "situation_type": "success",
+      "used_by_intents": ["hoi_gioi_thieu_cong_ty", "hoi_mo_hinh_hoat_dong"],
+      "required_variables": [],
+      "content": "Delippy là sàn thương mại điện tử kết hợp mua sắm và livestream bán hàng, kết nối bạn với hàng ngàn nhà bán (seller) trên khắp cả nước. Delippy đóng vai trò trung gian giúp việc mua bán diễn ra thuận tiện và an toàn hơn. Bạn có câu hỏi gì khác về Delippy không?",
+      "notes": "Bản ghi tĩnh, version hoá theo ngày cập nhật (mục 3 của 01_company)."
+    },
+    {
+      "id": "RT_COMPANY_LEGAL",
+      "domain": "01_company",
+      "situation_type": "success",
+      "used_by_intents": ["hoi_phap_ly_cong_ty"],
+      "required_variables": ["{{ma_so_thue}}", "{{giay_phep_kinh_doanh}}"],
+      "content": "MISSING_FROM_DOCUMENT — mẫu pháp lý kèm mã số thuế/giấy phép nếu được phép công khai.",
+      "notes": "N/A"
+    },
+    {
+      "id": "RT_COMPANY_VERIFY_OFFICIAL_CHANNEL",
+      "domain": "01_company",
+      "situation_type": "success",
+      "used_by_intents": ["xac_minh_kenh_chinh_thuc"],
+      "required_variables": ["{{danh_sach_kenh_chinh_thuc}}"],
+      "content": "MISSING_FROM_DOCUMENT — mẫu xác minh kênh chính thức, dùng khi người dùng nghi ngờ bị lừa đảo mạo danh Delippy.",
+      "notes": "Đối chiếu 12_contact để lấy danh sách kênh chính thức."
+    },
+    {
+      "id": "RT_ACCOUNT_OTP_RESEND_GUIDE",
+      "domain": "02_account",
+      "situation_type": "pending",
+      "used_by_intents": ["khong_nhan_duoc_otp", "quen_mat_khau"],
+      "required_variables": ["{{kenh_nhan_otp}}"],
+      "content": "MISSING_FROM_DOCUMENT — mẫu hướng dẫn gửi lại OTP.",
+      "notes": "N/A"
+    },
+    {
+      "id": "RT_ACCOUNT_LOCKED_STATUS",
+      "domain": "02_account",
+      "situation_type": "failure",
+      "used_by_intents": ["tai_khoan_bi_khoa"],
+      "required_variables": [],
+      "content": "MISSING_FROM_DOCUMENT — mẫu giải thích trạng thái khoá tài khoản, KHÔNG tiết lộ lý do nội bộ chi tiết.",
+      "notes": "Luôn kèm hướng dẫn quy trình khiếu nại + escalate, chatbot không tự mở khoá."
+    },
+    {
+      "id": "RT_ACCOUNT_DELETE_REQUEST_ACK",
+      "domain": "02_account",
+      "situation_type": "success",
+      "used_by_intents": ["yeu_cau_xoa_tai_khoan"],
+      "required_variables": ["{{ticket_id}}"],
+      "content": "MISSING_FROM_DOCUMENT — mẫu xác nhận đã tiếp nhận yêu cầu xoá tài khoản kèm mã ticket.",
+      "notes": "Phải giải thích hệ quả (mất lịch sử đơn, voucher, ví...) trước khi xác nhận."
+    },
+    {
+      "id": "RT_ACCOUNT_SOCIAL_LINK_GUIDE",
+      "domain": "02_account",
+      "situation_type": "success",
+      "used_by_intents": ["lien_ket_mang_xa_hoi"],
+      "required_variables": ["{{kenh_dang_nhap}}"],
+      "content": "MISSING_FROM_DOCUMENT — mẫu hướng dẫn liên kết/gỡ liên kết mạng xã hội.",
+      "notes": "N/A"
+    },
+    {
+      "id": "RT_ORDER_STATUS_PENDING",
+      "domain": "03_order",
+      "situation_type": "pending",
+      "used_by_intents": ["tra_cuu_don_hang", "kiem_tra_trang_thai_don", "sao_don_chua_duoc_xac_nhan"],
+      "required_variables": ["{{ma_don_hang}}"],
+      "content": "Đơn hàng {{ma_don_hang}} của bạn đã được ghi nhận và đang chờ người bán xác nhận nhé. Mình sẽ báo ngay khi có cập nhật mới!",
+      "notes": "= giai đoạn 1 bảng 3.1 (05_shipping)."
+    },
+    {
+      "id": "RT_ORDER_STATUS_PROCESSING",
+      "domain": "03_order",
+      "situation_type": "pending",
+      "used_by_intents": ["tra_cuu_don_hang", "kiem_tra_trang_thai_don"],
+      "required_variables": ["{{ma_don_hang}}"],
+      "content": "Đơn hàng {{ma_don_hang}} đã được người bán xác nhận và đang được chuẩn bị/đóng gói, chưa có mã vận đơn bạn nhé.",
+      "notes": "= giai đoạn 2-3 bảng 3.1; cần sub-status để phân biệt 'đã xác nhận' vs 'đang đóng gói' (xem shipping)."
+    },
+    {
+      "id": "RT_ORDER_STATUS_ON_DELIVERY",
+      "domain": "03_order",
+      "situation_type": "pending",
+      "used_by_intents": ["tra_cuu_don_hang", "kiem_tra_trang_thai_don", "hang_dang_o_dau"],
+      "required_variables": ["{{ma_don_hang}}", "{{ma_van_don}}"],
+      "content": "Đơn hàng {{ma_don_hang}} đang trên đường giao tới bạn, mã vận đơn là {{ma_van_don}}. Bạn có thể theo dõi hành trình giao hàng ngay trong app nhé!",
+      "notes": "= giai đoạn 4-5 bảng 3.1."
+    },
+    {
+      "id": "RT_ORDER_STATUS_COMPLETED",
+      "domain": "03_order",
+      "situation_type": "success",
+      "used_by_intents": ["tra_cuu_don_hang", "kiem_tra_trang_thai_don"],
+      "required_variables": ["{{ma_don_hang}}", "{{thoi_gian_giao}}"],
+      "content": "Đơn hàng {{ma_don_hang}} đã giao thành công lúc {{thoi_gian_giao}}. Nếu sản phẩm có vấn đề gì, bạn có thể tạo yêu cầu đổi trả ngay trong app nhé.",
+      "notes": "= giai đoạn 7 bảng 3.1."
+    },
+    {
+      "id": "RT_ORDER_STATUS_DECLINED",
+      "domain": "03_order",
+      "situation_type": "failure",
+      "used_by_intents": ["tra_cuu_don_hang", "kiem_tra_trang_thai_don"],
+      "required_variables": ["{{ma_don_hang}}"],
+      "content": "Đơn hàng {{ma_don_hang}} hiện đã bị từ chối/huỷ. Nếu bạn cần hỗ trợ thêm về đơn này, cứ nhắn cho mình nhé!",
+      "notes": "N/A"
+    },
+    {
+      "id": "RT_ORDER_CANCEL_SUCCESS",
+      "domain": "03_order",
+      "situation_type": "success",
+      "used_by_intents": ["huy_don_hang"],
+      "required_variables": ["{{ma_don_hang}}"],
+      "content": "Mình đã huỷ đơn hàng {{ma_don_hang}} giúp bạn thành công rồi nhé!",
+      "notes": "N/A"
+    },
+    {
+      "id": "RT_ORDER_CANCEL_REJECTED",
+      "domain": "03_order",
+      "situation_type": "rejected",
+      "used_by_intents": ["huy_don_hang"],
+      "required_variables": ["{{ma_don_hang}}", "{{trang_thai_hien_tai}}"],
+      "content": "Đơn hàng {{ma_don_hang}} hiện đang ở trạng thái {{trang_thai_hien_tai}} nên không thể huỷ trực tiếp qua chatbot được nữa. Nếu hàng đã giao và có vấn đề, bạn có thể tạo yêu cầu đổi trả nhé.",
+      "notes": "Dùng khi đơn đã ở on delivery/completed — chuyển hướng sang 06_return_refund."
+    },
+    {
+      "id": "RT_ORDER_NOT_FOUND",
+      "domain": "03_order",
+      "situation_type": "failure",
+      "used_by_intents": ["khong_thay_don_hang", "tra_cuu_don_hang"],
+      "required_variables": [],
+      "content": "Mình không tìm thấy đơn hàng nào khớp với thông tin bạn cung cấp. Bạn kiểm tra lại mã đơn giúp mình nhé?",
+      "notes": "N/A"
+    },
+    {
+      "id": "RT_PAYMENT_METHODS_LIST",
+      "domain": "04_payment",
+      "situation_type": "success",
+      "used_by_intents": ["hoi_phuong_thuc_thanh_toan"],
+      "required_variables": ["{{danh_sach_phuong_thuc}}"],
+      "content": "Delippy hiện hỗ trợ các phương thức thanh toán sau: {{danh_sach_phuong_thuc}}.",
+      "notes": "N/A"
+    },
+    {
+      "id": "RT_PAYMENT_PENDING_CONFIRMATION",
+      "domain": "04_payment",
+      "situation_type": "pending",
+      "used_by_intents": ["da_thanh_toan_nhung_don_chua_len", "kiem_tra_trang_thai_thanh_toan"],
+      "required_variables": ["{{ma_don_hang}}", "{{thoi_gian_dong_bo_du_kien}}"],
+      "content": "Giao dịch cho đơn {{ma_don_hang}} đang chờ xác nhận, thường mất khoảng {{thoi_gian_dong_bo_du_kien}} để hệ thống cập nhật. Bạn đợi mình một chút nhé!",
+      "notes": "N/A"
+    },
+    {
+      "id": "RT_PAYMENT_SUCCESS",
+      "domain": "04_payment",
+      "situation_type": "success",
+      "used_by_intents": ["kiem_tra_trang_thai_thanh_toan"],
+      "required_variables": ["{{ma_don_hang}}", "{{so_tien}}"],
+      "content": "Đơn hàng {{ma_don_hang}} đã thanh toán thành công với số tiền {{so_tien}}.",
+      "notes": "N/A"
+    },
+    {
+      "id": "RT_PAYMENT_RETRY_EXPIRED",
+      "domain": "04_payment",
+      "situation_type": "failure",
+      "used_by_intents": ["thanh_toan_that_bai"],
+      "required_variables": ["{{ma_don_hang}}"],
+      "content": "MISSING_FROM_DOCUMENT — mẫu hướng dẫn thử lại khi hết hạn phiên thanh toán.",
+      "notes": "N/A"
+    },
+    {
+      "id": "RT_PAYMENT_DISPUTE_ESCALATE",
+      "domain": "04_payment",
+      "situation_type": "escalate",
+      "used_by_intents": ["bi_tru_tien_hai_lan", "thanh_toan_that_bai"],
+      "required_variables": ["{{ticket_id}}"],
+      "content": "MISSING_FROM_DOCUMENT — mẫu chuyển CSKH cho tranh chấp giao dịch tiền.",
+      "notes": "Không tự kết luận đúng/sai; chỉ thu thập bằng chứng (thời gian, số tiền, số lần) rồi escalate."
+    },
+    {
+      "id": "RT_SHIP_STAGE_1_ORDERED",
+      "domain": "05_shipping",
+      "situation_type": "pending",
+      "used_by_intents": ["tra_cuu_van_don", "hang_dang_o_dau"],
+      "required_variables": ["{{ma_don_hang}}"],
+      "content": "Đơn hàng {{ma_don_hang}} đã được ghi nhận, đang chờ người bán xác nhận nhé.",
+      "notes": "Bảng 3.1 hàng 1."
+    },
+    {
+      "id": "RT_SHIP_STAGE_2_CONFIRMED",
+      "domain": "05_shipping",
+      "situation_type": "pending",
+      "used_by_intents": ["tra_cuu_van_don", "hang_dang_o_dau"],
+      "required_variables": ["{{ma_don_hang}}"],
+      "content": "Đơn hàng {{ma_don_hang}} đã được người bán xác nhận và đang được chuẩn bị hàng.",
+      "notes": "Bảng 3.1 hàng 2."
+    },
+    {
+      "id": "RT_SHIP_STAGE_3_PACKING",
+      "domain": "05_shipping",
+      "situation_type": "pending",
+      "used_by_intents": ["tra_cuu_van_don", "hang_dang_o_dau"],
+      "required_variables": ["{{ma_don_hang}}"],
+      "content": "Đơn hàng {{ma_don_hang}} đang được đóng gói, sắp bàn giao cho đơn vị vận chuyển.",
+      "notes": "Bảng 3.1 hàng 3."
+    },
+    {
+      "id": "RT_SHIP_STAGE_4_HANDED_OVER",
+      "domain": "05_shipping",
+      "situation_type": "pending",
+      "used_by_intents": ["tra_cuu_van_don", "hang_dang_o_dau"],
+      "required_variables": ["{{ma_don_hang}}", "{{ma_van_don}}", "{{don_vi_van_chuyen}}"],
+      "content": "Đơn hàng {{ma_don_hang}} đã rời kho và được bàn giao cho {{don_vi_van_chuyen}}, mã vận đơn là {{ma_van_don}}.",
+      "notes": "Bảng 3.1 hàng 4."
+    },
+    {
+      "id": "RT_SHIP_STAGE_5_IN_TRANSIT_WITH_ETA",
+      "domain": "05_shipping",
+      "situation_type": "pending",
+      "used_by_intents": ["tra_cuu_van_don", "hang_dang_o_dau", "giao_thieu_du_kien_bao_lau"],
+      "required_variables": ["{{ma_van_don}}", "{{moc_tracking_gan_nhat}}", "{{estimated_delivery}}"],
+      "content": "Đơn hàng của bạn (vận đơn {{ma_van_don}}) đang trên đường giao. Mốc gần nhất: {{moc_tracking_gan_nhat}}. Dự kiến giao vào {{estimated_delivery}}.",
+      "notes": "Bảng 3.1 hàng 5, biến thể có ETA (mục 10 của 05_shipping)."
+    },
+    {
+      "id": "RT_SHIP_STAGE_5_IN_TRANSIT_NO_ETA",
+      "domain": "05_shipping",
+      "situation_type": "pending",
+      "used_by_intents": ["tra_cuu_van_don", "hang_dang_o_dau", "giao_thieu_du_kien_bao_lau"],
+      "required_variables": ["{{ma_van_don}}", "{{moc_tracking_gan_nhat}}"],
+      "content": "Đơn hàng của bạn (vận đơn {{ma_van_don}}) đang trên đường giao. Mốc gần nhất: {{moc_tracking_gan_nhat}}. Đơn vị vận chuyển hiện chưa cung cấp thời gian giao dự kiến cụ thể.",
+      "notes": "Bảng 3.1 hàng 5, biến thể không ETA."
+    },
+    {
+      "id": "RT_SHIP_STAGE_6_DELIVERY_FAILED",
+      "domain": "05_shipping",
+      "situation_type": "failure",
+      "used_by_intents": ["giao_that_bai"],
+      "required_variables": ["{{ly_do_giao_that_bai}}", "{{so_lan_da_thu}}"],
+      "content": "Đơn hàng gặp sự cố khi giao: {{ly_do_giao_that_bai}} (đã thử {{so_lan_da_thu}} lần). Bạn muốn mình hỗ trợ giao lại, đổi địa chỉ nhận, hay huỷ đơn?",
+      "notes": "Bảng 3.1 hàng 6."
+    },
+    {
+      "id": "RT_SHIP_STAGE_7_DELIVERED",
+      "domain": "05_shipping",
+      "situation_type": "success",
+      "used_by_intents": ["tra_cuu_van_don"],
+      "required_variables": ["{{ma_don_hang}}", "{{thoi_gian_giao}}", "{{han_doi_tra_con_lai}}"],
+      "content": "MISSING_FROM_DOCUMENT — giai đoạn 7 'Đã giao': xác nhận giao thành công, thời gian giao, hướng dẫn đổi trả nếu có vấn đề, nhắc hạn đổi trả còn lại.",
+      "notes": "Bảng 3.1 hàng 7 — trùng RT_ORDER_STATUS_COMPLETED, dùng cùng một template cho cả 2 domain."
+    },
+    {
+      "id": "RT_SHIP_STAGE_8_RETURN_INITIATED",
+      "domain": "05_shipping",
+      "situation_type": "pending",
+      "used_by_intents": ["yeu_cau_doi_tra"],
+      "required_variables": ["{{ma_yeu_cau_doi_tra}}"],
+      "content": "MISSING_FROM_DOCUMENT — giai đoạn 8 'Đổi trả': đã ghi nhận yêu cầu, các bước tiếp theo (seller/CSKH duyệt, gửi trả hàng nếu cần).",
+      "notes": "Bảng 3.1 hàng 8 — xem chi tiết RT_RETURN_REQUEST_CREATED ở 06_return_refund."
+    },
+    {
+      "id": "RT_SHIP_STAGE_9_REFUND_PENDING",
+      "domain": "05_shipping",
+      "situation_type": "pending",
+      "used_by_intents": ["kiem_tra_trang_thai_doi_tra"],
+      "required_variables": ["{{so_tien_hoan}}", "{{phuong_thuc_hoan}}", "{{thoi_gian_du_kien}}"],
+      "content": "MISSING_FROM_DOCUMENT — giai đoạn 9 'Hoàn tiền': xác nhận yêu cầu hoàn tiền đã duyệt, số tiền, phương thức hoàn, thời gian dự kiến.",
+      "notes": "Bảng 3.1 hàng 9."
+    },
+    {
+      "id": "RT_SHIP_NOT_RECEIVED_BUT_SYSTEM_SAYS_DELIVERED",
+      "domain": "05_shipping",
+      "situation_type": "escalate",
+      "used_by_intents": ["chua_nhan_duoc_hang_du_he_thong_bao_da_giao"],
+      "required_variables": ["{{ma_don_hang}}", "{{ticket_id}}"],
+      "content": "MISSING_FROM_DOCUMENT — template escalate nhạy cảm nhất của toàn domain shipping; văn phong trấn an + cam kết xử lý rõ ràng thay vì chỉ báo lỗi kỹ thuật.",
+      "notes": "Escalate ngay lập tức theo mục 15 của 05_shipping."
+    },
+    {
+      "id": "RT_RETURN_REQUEST_CREATED",
+      "domain": "06_return_refund",
+      "situation_type": "success",
+      "used_by_intents": ["yeu_cau_doi_tra", "yeu_cau_hoan_tien"],
+      "required_variables": ["{{ma_yeu_cau_doi_tra}}", "{{buoc_tiep_theo}}", "{{thoi_gian_xu_ly_du_kien}}"],
+      "content": "MISSING_FROM_DOCUMENT — mẫu xác nhận đã ghi nhận yêu cầu, kèm mã yêu cầu, các bước tiếp theo, thời gian xử lý dự kiến.",
+      "notes": "Hiện tại luôn kèm tạo ticket CSKH thủ công do chưa có API duyệt tự động."
+    },
+    {
+      "id": "RT_RETURN_WINDOW_REMINDER",
+      "domain": "06_return_refund",
+      "situation_type": "ask_more_info",
+      "used_by_intents": ["yeu_cau_doi_tra"],
+      "required_variables": ["{{han_doi_tra_con_lai_hoac_da_het}}"],
+      "content": "MISSING_FROM_DOCUMENT — mẫu nhắc còn trong/đã hết hạn đổi trả.",
+      "notes": "Tham chiếu policy.return.timeframe ở 10_policy."
+    },
+    {
+      "id": "RT_RETURN_STATUS_UPDATE",
+      "domain": "06_return_refund",
+      "situation_type": "pending",
+      "used_by_intents": ["kiem_tra_trang_thai_doi_tra"],
+      "required_variables": ["{{ma_yeu_cau_doi_tra}}", "{{trang_thai_hien_tai}}"],
+      "content": "MISSING_FROM_DOCUMENT — mẫu giải thích trạng thái theo từng bước của vòng đời (chờ duyệt/đã duyệt/đang hoàn tiền/hoàn tất/bị từ chối).",
+      "notes": "N/A"
+    },
+    {
+      "id": "RT_RETURN_REJECTED",
+      "domain": "06_return_refund",
+      "situation_type": "rejected",
+      "used_by_intents": ["kiem_tra_trang_thai_doi_tra"],
+      "required_variables": ["{{ma_yeu_cau_doi_tra}}", "{{ly_do_tu_choi}}"],
+      "content": "MISSING_FROM_DOCUMENT — mẫu từ chối kèm hướng dẫn khiếu nại nếu khách không đồng ý.",
+      "notes": "N/A"
+    },
+    {
+      "id": "RT_RETURN_EVIDENCE_MISSING",
+      "domain": "06_return_refund",
+      "situation_type": "ask_more_info",
+      "used_by_intents": ["yeu_cau_doi_tra", "san_pham_bi_loi", "khong_dung_mo_ta"],
+      "required_variables": [],
+      "content": "MISSING_FROM_DOCUMENT — mẫu yêu cầu bổ sung hình ảnh minh chứng còn thiếu.",
+      "notes": "Bắt buộc với nhóm lý do lỗi/hư hỏng/không đúng mô tả."
+    },
+    {
+      "id": "RT_WARRANTY_ACTIVE",
+      "domain": "07_warranty",
+      "situation_type": "success",
+      "used_by_intents": ["hoi_thoi_han_bao_hanh", "yeu_cau_bao_hanh"],
+      "required_variables": ["{{thoi_han_con_lai}}", "{{kenh_nop_yeu_cau}}"],
+      "content": "MISSING_FROM_DOCUMENT — mẫu thông báo còn hạn bảo hành kèm hướng dẫn liên hệ.",
+      "notes": "N/A"
+    },
+    {
+      "id": "RT_WARRANTY_EXPIRED",
+      "domain": "07_warranty",
+      "situation_type": "failure",
+      "used_by_intents": ["san_pham_het_bao_hanh"],
+      "required_variables": [],
+      "content": "MISSING_FROM_DOCUMENT — mẫu thông báo hết hạn bảo hành, gợi ý lựa chọn khác (mua mới, sửa chữa ngoài).",
+      "notes": "N/A"
+    },
+    {
+      "id": "RT_WARRANTY_SELLER_RESPONSIBILITY",
+      "domain": "07_warranty",
+      "situation_type": "success",
+      "used_by_intents": ["bao_hanh_o_dau"],
+      "required_variables": [],
+      "content": "MISSING_FROM_DOCUMENT — mẫu giải thích bảo hành thuộc trách nhiệm seller, không phải Delippy trực tiếp bảo hành.",
+      "notes": "N/A"
+    },
+    {
+      "id": "RT_PROFILE_EDIT_GUIDE",
+      "domain": "08_profile",
+      "situation_type": "success",
+      "used_by_intents": ["cap_nhat_thong_tin_ca_nhan", "them_sua_xoa_dia_chi", "doi_dia_chi_mac_dinh"],
+      "required_variables": ["{{man_hinh_dich}}"],
+      "content": "MISSING_FROM_DOCUMENT — mẫu hướng dẫn từng bước tới màn hình chỉnh sửa hồ sơ/địa chỉ.",
+      "notes": "Sửa sổ địa chỉ KHÔNG tự động cập nhật địa chỉ của đơn đã đặt — phải nói rõ điều này."
+    },
+    {
+      "id": "RT_PROFILE_SAVE_ERROR_COMMON",
+      "domain": "08_profile",
+      "situation_type": "failure",
+      "used_by_intents": ["khong_luu_duoc_thong_tin"],
+      "required_variables": [],
+      "content": "MISSING_FROM_DOCUMENT — mẫu xử lý lỗi lưu không thành công thường gặp.",
+      "notes": "N/A"
+    },
+    {
+      "id": "RT_VOUCHER_CONDITIONS",
+      "domain": "09_promotion",
+      "situation_type": "success",
+      "used_by_intents": ["hoi_dieu_kien_voucher"],
+      "required_variables": ["{{ma_voucher}}", "{{dieu_kien_ap_dung}}"],
+      "content": "MISSING_FROM_DOCUMENT — mẫu giải thích điều kiện voucher.",
+      "notes": "N/A"
+    },
+    {
+      "id": "RT_VOUCHER_REJECT_REASON",
+      "domain": "09_promotion",
+      "situation_type": "rejected",
+      "used_by_intents": ["sao_khong_ap_dung_duoc_voucher", "voucher_het_han"],
+      "required_variables": ["{{ma_voucher}}", "{{ly_do_tu_choi}}"],
+      "content": "MISSING_FROM_DOCUMENT — mẫu thông báo lý do không áp dụng được, theo từng nguyên nhân (chưa đủ giá trị đơn/hết hạn/đã dùng/không áp dụng ngành hàng này).",
+      "notes": "N/A"
+    },
+    {
+      "id": "RT_VOUCHER_HOW_TO_GET_NEW",
+      "domain": "09_promotion",
+      "situation_type": "success",
+      "used_by_intents": ["lam_sao_nhan_voucher"],
+      "required_variables": [],
+      "content": "MISSING_FROM_DOCUMENT — mẫu gợi ý cách nhận voucher mới.",
+      "notes": "N/A"
+    },
+    {
+      "id": "RT_DP_POINTS_NOT_REFUNDABLE",
+      "domain": "09_promotion",
+      "situation_type": "failure",
+      "used_by_intents": ["huy_don_hang"],
+      "required_variables": ["{{so_diem_dp_da_dung}}"],
+      "content": "MISSING_FROM_DOCUMENT — quy tắc: điểm thưởng DP đã sử dụng cho một đơn KHÔNG được hoàn lại kể cả khi đơn bị huỷ; phải trả lời rõ ràng mỗi khi khách hỏi để tránh hiểu nhầm rồi phải escalate.",
+      "notes": "Nguồn: mục 14 (Exception) của 09_promotion; kích hoạt chéo domain khi 03_order xử lý huy_don_hang mà đơn có dùng điểm DP."
+    },
+    {
+      "id": "RT_POLICY_SUMMARY",
+      "domain": "10_policy",
+      "situation_type": "success",
+      "used_by_intents": ["hoi_chinh_sach_doi_tra", "hoi_chinh_sach_van_chuyen", "hoi_chinh_sach_bao_mat", "hoi_dieu_khoan_su_dung"],
+      "required_variables": ["{{loai_chinh_sach}}", "{{noi_dung_tom_tat}}", "{{lien_ket_day_du}}"],
+      "content": "MISSING_FROM_DOCUMENT — một template tóm tắt tham số hoá theo loai_chinh_sach, luôn có câu dẫn 'đây là tóm tắt, nội dung đầy đủ tại {{lien_ket_day_du}}'.",
+      "notes": "Một template dùng chung cho mọi loại chính sách, không phải 4 template riêng, theo đúng mô tả mục 10 của 10_policy."
+    },
+    {
+      "id": "RT_SECURITY_CHANGE_PASSWORD_GUIDE",
+      "domain": "11_security",
+      "situation_type": "success",
+      "used_by_intents": ["doi_mat_khau"],
+      "required_variables": [],
+      "content": "MISSING_FROM_DOCUMENT — mẫu hướng dẫn đổi mật khẩu.",
+      "notes": "N/A"
+    },
+    {
+      "id": "RT_SECURITY_ACCOUNT_TAKEOVER_URGENT",
+      "domain": "11_security",
+      "situation_type": "escalate",
+      "used_by_intents": ["nghi_ngo_bi_chiem_tai_khoan", "phat_hien_dang_nhap_la"],
+      "required_variables": ["{{ticket_id}}"],
+      "content": "MISSING_FROM_DOCUMENT — mẫu xử lý khẩn nghi ngờ chiếm tài khoản; văn phong trấn an + hành động ngay, không rườm rà.",
+      "notes": "Ưu tiên cao nhất toàn hệ thống — escalate ngay lập tức."
+    },
+    {
+      "id": "RT_SECURITY_OFFICIAL_CHANNEL_CONFIRM",
+      "domain": "11_security",
+      "situation_type": "success",
+      "used_by_intents": ["bao_cao_lua_dao_mao_danh"],
+      "required_variables": ["{{danh_sach_kenh_chinh_thuc}}"],
+      "content": "MISSING_FROM_DOCUMENT — mẫu xác nhận kênh chính thức khi có nghi ngờ mạo danh.",
+      "notes": "Đối chiếu 01_company/12_contact."
+    },
+    {
+      "id": "RT_SECURITY_PHISHING_REPORT_ACK",
+      "domain": "11_security",
+      "situation_type": "success",
+      "used_by_intents": ["bao_cao_lua_dao_mao_danh"],
+      "required_variables": ["{{ticket_id}}"],
+      "content": "MISSING_FROM_DOCUMENT — mẫu ghi nhận báo cáo lừa đảo.",
+      "notes": "N/A"
+    },
+    {
+      "id": "RT_CONTACT_CHANNELS_LIST",
+      "domain": "12_contact",
+      "situation_type": "success",
+      "used_by_intents": ["hoi_kenh_lien_he", "muon_gap_nguoi_that"],
+      "required_variables": ["{{danh_sach_kenh_theo_loai_van_de}}", "{{gio_hoat_dong}}"],
+      "content": "MISSING_FROM_DOCUMENT — mẫu liệt kê kênh liên hệ theo loại vấn đề.",
+      "notes": "N/A"
+    },
+    {
+      "id": "RT_CONTACT_OUTSIDE_HOURS",
+      "domain": "12_contact",
+      "situation_type": "failure",
+      "used_by_intents": ["hoi_gio_lam_viec_tong_dai", "muon_gap_nguoi_that"],
+      "required_variables": ["{{gio_mo_lai}}", "{{kenh_du_phong_24_7}}"],
+      "content": "MISSING_FROM_DOCUMENT — mẫu thông báo ngoài giờ làm việc, kèm giờ mở lại và kênh dự phòng 24/7 nếu có.",
+      "notes": "N/A"
+    },
+    {
+      "id": "RT_CONTACT_TICKET_CREATED_ACK",
+      "domain": "12_contact",
+      "situation_type": "escalate",
+      "used_by_intents": ["muon_gap_nguoi_that"],
+      "required_variables": ["{{ticket_id}}", "{{thoi_gian_phan_hoi_du_kien}}"],
+      "content": "MISSING_FROM_DOCUMENT — mẫu xác nhận đã tạo ticket khi escalate kèm thời gian phản hồi dự kiến.",
+      "notes": "Dùng chung cho mọi escalate xuyên suốt hệ thống, không riêng 12_contact."
+    },
+    {
+      "id": "RT_ERROR_GENERIC_BUSY",
+      "domain": "14_error_message",
+      "situation_type": "failure",
+      "used_by_intents": [],
+      "required_variables": [],
+      "content": "Hệ thống đang bận, vui lòng thử lại sau ít phút.",
+      "notes": "Ví dụ nguyên văn từ mục 10 của 14_error_message. Không escalate ngay."
+    },
+    {
+      "id": "RT_ERROR_NOT_FOUND",
+      "domain": "14_error_message",
+      "situation_type": "failure",
+      "used_by_intents": [],
+      "required_variables": [],
+      "content": "Không tìm thấy thông tin bạn yêu cầu, bạn có thể kiểm tra lại mã đơn giúp mình không?",
+      "notes": "Ví dụ nguyên văn từ mục 10 của 14_error_message."
+    },
+    {
+      "id": "RT_ERROR_GENERIC_FALLBACK",
+      "domain": "14_error_message",
+      "situation_type": "generic_fallback",
+      "used_by_intents": [],
+      "required_variables": [],
+      "content": "Xin lỗi bạn, hiện mình đang gặp chút trục trặc kỹ thuật. Bạn thử lại sau ít phút hoặc liên hệ CSKH giúp mình nhé!",
+      "notes": "Không bao giờ để trống hoặc hiển thị lỗi thô."
+    },
+    {
+      "id": "RT_ERROR_UNAUTHENTICATED",
+      "domain": "14_error_message",
+      "situation_type": "ask_more_info",
+      "used_by_intents": [],
+      "required_variables": [],
+      "content": "Để tra cứu thông tin này, mình cần bạn đăng nhập trước nhé. Bạn có thể đăng nhập rồi hỏi lại, hoặc cho mình xin mã đơn hàng/số điện thoại đã đặt hàng để mình hỗ trợ nhanh hơn.",
+      "notes": "Guest (không token) cố thực hiện Protected Action — theo .agents/AGENTS.md quy tắc 3, KHÔNG gọi API backend, không tạo ticket, dù lặp lại bao nhiêu lần trong phiên."
+    },
+    {
+      "id": "RT_ERROR_RATE_LIMITED",
+      "domain": "14_error_message",
+      "situation_type": "failure",
+      "used_by_intents": [],
+      "required_variables": [],
+      "content": "Hệ thống đang có khá nhiều người hỏi cùng lúc, bạn vui lòng thử lại sau ít giây nhé!",
+      "notes": "Dùng khi tool call trả 429 (rate limited)."
+    },
+    {
+      "id": "RT_APOLOGY_DELAY",
+      "domain": "17_response_template",
+      "situation_type": "generic_fallback",
+      "used_by_intents": [],
+      "required_variables": [],
+      "content": "Mình xin lỗi vì đã để bạn chờ lâu. Cảm ơn bạn đã kiên nhẫn nhé!",
+      "notes": "Mục 2 của 17_response_template."
+    },
+    {
+      "id": "RT_ESCALATE_GENERIC",
+      "domain": "17_response_template",
+      "situation_type": "escalate",
+      "used_by_intents": [],
+      "required_variables": ["{{ticket_id}}"],
+      "content": "Mình đã ghi nhận yêu cầu của bạn (mã ticket: {{ticket_id}}), đội CSKH sẽ liên hệ hỗ trợ bạn sớm nhất nhé!",
+      "notes": "Mục 2 của 17_response_template."
+    },
+    {
+      "id": "RT_GREETING_OPEN",
+      "domain": "17_response_template",
+      "situation_type": "generic_fallback",
+      "used_by_intents": [],
+      "required_variables": [],
+      "content": "Chào bạn! Mình là Delippy, rất vui được hỗ trợ bạn hôm nay. Bạn cần mình giúp gì không?",
+      "notes": "Mục 2 của 17_response_template."
+    },
+    {
+      "id": "RT_GREETING_CLOSE",
+      "domain": "17_response_template",
+      "situation_type": "generic_fallback",
+      "used_by_intents": [],
+      "required_variables": [],
+      "content": "Cảm ơn bạn đã liên hệ Delippy! Nếu cần hỗ trợ thêm, bạn cứ nhắn cho mình nhé.",
+      "notes": "Mục 2 của 17_response_template."
+    },
+    {
+      "id": "RT_ASK_MORE_INFO_GENERIC",
+      "domain": "17_response_template",
+      "situation_type": "ask_more_info",
+      "used_by_intents": [],
+      "required_variables": ["{{ten_entity_con_thieu}}"],
+      "content": "Bạn cho mình xin thêm {{ten_entity_con_thieu}} để hỗ trợ chính xác hơn nhé!",
+      "notes": "Mục 3 của 17_response_template liệt kê 'xin thêm thông tin' là một loại tình huống cắt ngang."
+    },
+    {
+      "id": "RT_RENDER_FALLBACK_GENERIC",
+      "domain": "17_response_template",
+      "situation_type": "generic_fallback",
+      "used_by_intents": [],
+      "required_variables": [],
+      "content": "Xin lỗi bạn, mình chưa thể hiển thị đầy đủ thông tin lúc này. Bạn vui lòng thử lại hoặc liên hệ CSKH giúp mình nhé!",
+      "notes": "Mục 14 (Exception) của 17_response_template."
+    }
+  ]
+}

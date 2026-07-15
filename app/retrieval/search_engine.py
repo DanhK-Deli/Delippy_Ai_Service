@@ -149,6 +149,24 @@ class SearchEngine:
         print(f"\n[SearchEngine][hybrid] {primary_name} path returned 0 products - falling back to {fallback_name}.")
         return await fallback(context)
 
+    async def _get_details_cached(self, slug: str) -> Optional[Dict[str, Any]]:
+        """Raw provider product-detail response, cached under a namespace
+        distinct from get_detail()'s own `detail:{slug}` cache - that one
+        stores the already-built Evidence dict (different shape), so
+        reusing its key here would feed a raw provider response back into
+        Evidence(**cached) and crash/malform it. This just dedupes the
+        identical GET (vector-search candidate re-verify vs. a later detail
+        view of the same product, confirmed live as two back-to-back calls
+        to the same slug)."""
+        cache_key = f"rawdetail:{slug}"
+        cached = await cache_repo.get_cached_search(cache_key)
+        if cached is not None:
+            return cached
+        detail = await search_provider.get_details(slug)
+        if isinstance(detail, dict):
+            await cache_repo.set_cached_search(cache_key, detail, ttl_seconds=1800)
+        return detail
+
     async def _search_vector(self, context: ShoppingContext) -> Evidence:
         """Semantic retrieval path. Only category_id (top-level, 14 buckets)
         is used as a $vectorSearch pre-filter - NOT subcategory_id, even
@@ -255,7 +273,7 @@ class SearchEngine:
         async def _verify(cand: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             async with semaphore:
                 try:
-                    detail = await search_provider.get_details(cand["slug"])
+                    detail = await self._get_details_cached(cand["slug"])
                 except Exception:
                     return None
             if not isinstance(detail, dict):
@@ -562,7 +580,7 @@ class SearchEngine:
         print(f"\n[SearchEngine] Detail requested for slug guess: '{slug}'")
         detail = None
         try:
-            detail = await search_provider.get_details(slug)
+            detail = await self._get_details_cached(slug)
         except Exception:
             pass
         if not isinstance(detail, dict):
@@ -578,7 +596,7 @@ class SearchEngine:
                 real_slug = best_match.get("slug")
                 if real_slug and real_slug != slug:
                     print(f"  - Found real slug: '{real_slug}'. Re-fetching details...")
-                    detail = await search_provider.get_details(real_slug)
+                    detail = await self._get_details_cached(real_slug)
                     if not isinstance(detail, dict):
                         detail = None
                     slug = real_slug
@@ -614,30 +632,39 @@ class SearchEngine:
             (p.get("name") or "").strip().lower(): p
             for p in (cached_products or []) if p.get("name") and p.get("slug")
         }
-        for target in context.compare_targets[:3]:
-            detail = None
+        targets = context.compare_targets[:3]
+
+        async def _resolve_target(target: str) -> Optional[Dict[str, Any]]:
             cached_hit = cached_by_name.get(target.strip().lower())
             if cached_hit:
                 detail = await search_provider.get_details(cached_hit["slug"])
-            if not detail:
-                # /products/search does an AND-token match against the raw
-                # query text, so a filler word inside `target` ("của", "là"...)
-                # that never appears in the product's own name/title is
-                # enough to zero out an otherwise-real match - confirmed
-                # live: 'sữa bột của colos glucomi' (the raw compare target,
-                # containing "của") returned 0 results against a catalog
-                # product literally named "Sữa bột Colos Glucomin...",
-                # while the SAME text with "của" stripped matched it fine.
-                # clean_query_keywords is the same stopword strip the plain
-                # SEARCH path already gets - falls back to the raw target if
-                # cleaning empties it out entirely.
-                cleaned_target = entity_extractor.clean_query_keywords(target) or target
-                search_res = await search_provider.search(q=cleaned_target)
-                best_match = _best_match(search_res)
-                if best_match:
-                    slug = best_match.get("slug")
-                    if slug:
-                        detail = await search_provider.get_details(slug)
+                if detail:
+                    return detail
+            # /products/search does an AND-token match against the raw
+            # query text, so a filler word inside `target` ("của", "là"...)
+            # that never appears in the product's own name/title is
+            # enough to zero out an otherwise-real match - confirmed
+            # live: 'sữa bột của colos glucomi' (the raw compare target,
+            # containing "của") returned 0 results against a catalog
+            # product literally named "Sữa bột Colos Glucomin...",
+            # while the SAME text with "của" stripped matched it fine.
+            # clean_query_keywords is the same stopword strip the plain
+            # SEARCH path already gets - falls back to the raw target if
+            # cleaning empties it out entirely.
+            cleaned_target = entity_extractor.clean_query_keywords(target) or target
+            search_res = await search_provider.search(q=cleaned_target)
+            best_match = _best_match(search_res)
+            if best_match and best_match.get("slug"):
+                return await search_provider.get_details(best_match["slug"])
+            return None
+
+        # Each target resolves independently (no shared state between
+        # them) - get_details/search already swallow their own exceptions
+        # and return None/[] rather than raising, so gather needs no
+        # return_exceptions handling. Cuts compare_api latency from
+        # sum-of-targets to max-of-targets.
+        resolved = await asyncio.gather(*(_resolve_target(t) for t in targets))
+        for target, detail in zip(targets, resolved):
             if detail:
                 details.append(detail)
             else:

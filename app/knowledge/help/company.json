@@ -1,0 +1,169 @@
+{
+  "_source": "docs/chatbot-cskh-knowledge-base-design.md#01_company",
+  "knowledge_objects": [
+    {
+      "id": "COMPANY_INTRO",
+      "domain": "01_company",
+      "sub_domain": "gioi_thieu",
+      "intent": "hoi_gioi_thieu_cong_ty",
+      "description": "Trả lời câu hỏi Delippy là ai, mô hình kinh doanh (marketplace + livestream bán hàng qua Agora).",
+      "keywords": ["Delippy là gì", "công ty nào", "sàn của ai"],
+      "synonyms": [
+        {"canonical": "Delippy", "variants": ["app Delippy", "sàn Delippy"]}
+      ],
+      "sample_questions": ["Delippy là gì vậy?", "Sàn của ai vậy?"],
+      "entities": ["chu_de_hoi"],
+      "required_entities": [],
+      "optional_entities": ["chu_de_hoi"],
+      "business_rules": [
+        "Domain gần như trả lời tĩnh, không cần trích entity động ngoài chu_de_hoi để chọn đúng template.",
+        "Nếu câu hỏi lẫn giữa 'công ty Delippy' và 'shop/seller cụ thể trên sàn' phải làm rõ trước khi trả lời, tránh nhận nhầm trách nhiệm pháp lý của seller thành của Delippy."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Nhận diện intent hoi_gioi_thieu_cong_ty"},
+        {"step": 2, "action": "Không cần hỏi thêm gì (không có entity bắt buộc)"},
+        {"step": 3, "action": "Trả lời trực tiếp bằng template tĩnh RT_COMPANY_INTRO từ Knowledge Base"}
+      ],
+      "validation_rules": [
+        "Kiểm tra Knowledge Base không có bản ghi hết hạn (ví dụ đổi địa chỉ trụ sở) — cảnh báo nội bộ nếu bản ghi quá cũ (>12 tháng chưa review)."
+      ],
+      "api_mapping": [],
+      "response_templates": {
+        "success_response": "RT_COMPANY_INTRO",
+        "failure_response": "RT_ERROR_GENERIC_FALLBACK"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [
+        {"trigger": "câu hỏi lẫn giữa Delippy và seller cụ thể", "priority": "normal", "action": "làm rõ trước khi trả lời, không escalate ngay"}
+      ],
+      "logging": {"events": ["intent_matched", "template_rendered"], "sensitivity": "normal"},
+      "analytics_tags": ["company_intro_rate"],
+      "cache_policy": {"cacheable": true, "reason": "dữ liệu tĩnh, ít thay đổi và không phụ thuộc theo user"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["hoi_mo_hinh_hoat_dong", "hoi_phap_ly_cong_ty"]
+    },
+    {
+      "id": "COMPANY_LEGAL",
+      "domain": "01_company",
+      "sub_domain": "phap_ly",
+      "intent": "hoi_phap_ly_cong_ty",
+      "description": "Trả lời câu hỏi pháp lý: tên pháp nhân, mã số thuế/giấy phép kinh doanh, trụ sở.",
+      "keywords": ["giấy phép kinh doanh", "trụ sở ở đâu"],
+      "synonyms": [
+        {"canonical": "công ty", "variants": ["đơn vị vận hành", "chủ sàn"]}
+      ],
+      "sample_questions": ["Giấy phép kinh doanh của Delippy là gì?", "Trụ sở Delippy ở đâu?"],
+      "entities": ["chu_de_hoi"],
+      "required_entities": [],
+      "optional_entities": ["chu_de_hoi"],
+      "business_rules": [
+        "Delippy là sàn TMĐT trung gian giữa seller và người mua — không phải Delippy trực tiếp bán hàng, phải phản ánh đúng vai trò này khi trả lời.",
+        "Câu hỏi pháp lý phức tạp (tranh chấp hợp đồng, yêu cầu văn bản chính thức, cơ quan chức năng liên hệ) không được trả lời tự động."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Nhận diện intent hoi_phap_ly_cong_ty"},
+        {"step": 2, "action": "Phân loại câu hỏi: pháp lý cơ bản (mã số thuế/giấy phép/trụ sở) hay pháp lý phức tạp (tranh chấp/văn bản chính thức)"},
+        {"step": 3, "action": "Nếu cơ bản: trả lời bằng RT_COMPANY_LEGAL. Nếu phức tạp: escalate ngay, không trả lời tự động"}
+      ],
+      "validation_rules": [
+        "Kiểm tra Knowledge Base không có bản ghi hết hạn — cảnh báo nội bộ nếu bản ghi quá cũ (>12 tháng chưa review)."
+      ],
+      "api_mapping": [],
+      "response_templates": {
+        "success_response": "RT_COMPANY_LEGAL",
+        "failure_response": "RT_ESCALATE_GENERIC"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [
+        {"trigger": "tranh chấp hợp đồng, yêu cầu văn bản chính thức, cơ quan chức năng liên hệ", "priority": "high", "action": "escalate ngay, không trả lời tự động"}
+      ],
+      "logging": {"events": ["intent_matched", "escalated"], "sensitivity": "normal"},
+      "analytics_tags": ["company_legal_question_rate"],
+      "cache_policy": {"cacheable": true, "reason": "dữ liệu tĩnh"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["hoi_gioi_thieu_cong_ty"]
+    },
+    {
+      "id": "COMPANY_BUSINESS_MODEL",
+      "domain": "01_company",
+      "sub_domain": "mo_hinh_hoat_dong",
+      "intent": "hoi_mo_hinh_hoat_dong",
+      "description": "Giải thích mô hình hoạt động: sàn TMĐT trung gian giữa seller và người mua, có livestream bán hàng qua Agora.",
+      "keywords": ["sàn của ai"],
+      "synonyms": [
+        {"canonical": "Delippy", "variants": ["app Delippy", "sàn Delippy"]}
+      ],
+      "sample_questions": ["Delippy hoạt động theo mô hình gì?"],
+      "entities": ["chu_de_hoi"],
+      "required_entities": [],
+      "optional_entities": ["chu_de_hoi"],
+      "business_rules": [
+        "Không cần entity động, trả lời tĩnh."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Nhận diện intent hoi_mo_hinh_hoat_dong"},
+        {"step": 2, "action": "Trả lời trực tiếp bằng template tĩnh RT_COMPANY_INTRO (mô hình nằm trong nội dung giới thiệu)"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [],
+      "response_templates": {
+        "success_response": "RT_COMPANY_INTRO",
+        "failure_response": "RT_ERROR_GENERIC_FALLBACK"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [],
+      "logging": {"events": ["intent_matched"], "sensitivity": "normal"},
+      "analytics_tags": ["company_business_model_question_rate"],
+      "cache_policy": {"cacheable": true, "reason": "dữ liệu tĩnh"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["hoi_gioi_thieu_cong_ty"]
+    },
+    {
+      "id": "COMPANY_VERIFY_OFFICIAL_CHANNEL",
+      "domain": "01_company",
+      "sub_domain": "chong_lua_dao",
+      "intent": "xac_minh_kenh_chinh_thuc",
+      "description": "Xác nhận kênh chính thức của Delippy khi người dùng nghi ngờ bị lừa đảo mạo danh.",
+      "keywords": [],
+      "synonyms": [
+        {"canonical": "Delippy", "variants": ["app Delippy", "sàn Delippy"]}
+      ],
+      "sample_questions": ["Đây có phải kênh chính thức của Delippy không?", "Delippy có nhắn tin qua Zalo này không?"],
+      "entities": ["kenh_nghi_ngo"],
+      "required_entities": [],
+      "optional_entities": ["kenh_nghi_ngo"],
+      "business_rules": [
+        "Dùng để tăng độ tin cậy và giảm câu hỏi lặp cho CSKH người thật.",
+        "Log tần suất hỏi để phát hiện làn sóng nghi ngờ lừa đảo mạo danh (spike bất thường)."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Nhận diện intent xac_minh_kenh_chinh_thuc"},
+        {"step": 2, "action": "Trả lời bằng danh sách kênh chính thức (tham chiếu 12_contact)"},
+        {"step": 3, "action": "Nếu người dùng cung cấp thêm chi tiết nghi ngờ lừa đảo cụ thể, chuyển sang intent bao_cao_lua_dao_mao_danh của 11_security"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [],
+      "response_templates": {
+        "success_response": "RT_COMPANY_VERIFY_OFFICIAL_CHANNEL",
+        "failure_response": "RT_ERROR_GENERIC_FALLBACK"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [
+        {"trigger": "câu hỏi pháp lý phức tạp liên quan lừa đảo mạo danh diện rộng", "priority": "high", "action": "escalate"}
+      ],
+      "logging": {"events": ["intent_matched", "phishing_suspicion_spike_signal"], "sensitivity": "normal"},
+      "analytics_tags": ["xac_minh_kenh_chinh_thuc_frequency", "phishing_crisis_early_signal"],
+      "cache_policy": {"cacheable": true, "reason": "danh sách kênh chính thức tĩnh"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["bao_cao_lua_dao_mao_danh", "hoi_kenh_lien_he"]
+    }
+  ]
+}

@@ -1,0 +1,175 @@
+{
+  "_source": "docs/chatbot-cskh-knowledge-base-design.md#07_warranty",
+  "_note": "Chính sách bảo hành thuộc về từng seller/sản phẩm, không phải chính sách thống nhất toàn sàn. Lỗi phát hiện trong hạn đổi trả ưu tiên xử lý theo 06_return_refund; lỗi phát hiện sau khi hết hạn đổi trả nhưng còn hạn bảo hành xử lý theo domain này.",
+  "knowledge_objects": [
+    {
+      "id": "WARRANTY_PERIOD_INQUIRY",
+      "domain": "07_warranty",
+      "sub_domain": "tra_cuu",
+      "intent": "hoi_thoi_han_bao_hanh",
+      "description": "Tra cứu thời hạn bảo hành còn lại của một sản phẩm đã mua.",
+      "keywords": ["bảo hành", "còn bảo hành không"],
+      "synonyms": [
+        {"canonical": "bảo hành", "variants": ["warranty", "bh"]}
+      ],
+      "sample_questions": ["Sản phẩm tôi mua còn bảo hành không?"],
+      "entities": ["ma_don_hang", "san_pham", "ngay_mua"],
+      "required_entities": ["ma_don_hang", "san_pham"],
+      "optional_entities": ["ngay_mua"],
+      "business_rules": [
+        "Thông tin bảo hành gắn ở cấp sản phẩm (do seller khai báo lúc đăng bán), không phải cấp đơn hàng.",
+        "Nếu seller không khai báo chính sách bảo hành cho sản phẩm, phải trả lời rõ 'sản phẩm này không có bảo hành theo khai báo của người bán' thay vì suy đoán."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Xác định sản phẩm/đơn hàng"},
+        {"step": 2, "action": "Gọi TOOL_WARRANTY_PURCHASE_DATE_LOOKUP để lấy ngày mua"},
+        {"step": 3, "action": "Gọi TOOL_WARRANTY_POLICY_LOOKUP để lấy chính sách bảo hành seller khai báo"},
+        {"step": 4, "action": "Tính thời hạn còn lại = chính sách bảo hành - (hiện tại - ngày mua)"},
+        {"step": 5, "action": "Nếu còn hạn: RT_WARRANTY_ACTIVE. Nếu hết hạn: RT_WARRANTY_EXPIRED"}
+      ],
+      "validation_rules": [
+        "Sản phẩm được hỏi phải khớp với sản phẩm thực sự có trong đơn của người dùng."
+      ],
+      "api_mapping": [
+        {"tool_id": "TOOL_WARRANTY_POLICY_LOOKUP"},
+        {"tool_id": "TOOL_WARRANTY_PURCHASE_DATE_LOOKUP"}
+      ],
+      "response_templates": {
+        "success_response": "RT_WARRANTY_ACTIVE",
+        "failure_response": "RT_WARRANTY_EXPIRED"
+      },
+      "follow_up_questions": ["Bạn cho mình xin mã đơn hàng để mình xác nhận ngày mua nhé?"],
+      "escalation_rules": [
+        {"trigger": "tranh chấp về việc lỗi có thuộc diện bảo hành hay do người dùng gây ra", "priority": "normal", "action": "escalate"},
+        {"trigger": "seller ngừng hoạt động không còn ai xử lý bảo hành đã cam kết", "priority": "high", "action": "escalate"}
+      ],
+      "logging": {"events": ["warranty_period_checked"], "sensitivity": "normal", "note": "ghi nhận tần suất theo sản phẩm/seller"},
+      "analytics_tags": ["warranty_request_rate_by_product_seller"],
+      "cache_policy": {"cacheable": true, "reason": "chính sách bảo hành theo sản phẩm ít thay đổi"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["yeu_cau_bao_hanh", "san_pham_het_bao_hanh"]
+    },
+    {
+      "id": "WARRANTY_CLAIM_REQUEST",
+      "domain": "07_warranty",
+      "sub_domain": "yeu_cau",
+      "intent": "yeu_cau_bao_hanh",
+      "description": "Hướng dẫn kênh nộp yêu cầu bảo hành khi sản phẩm còn hạn.",
+      "keywords": ["sản phẩm hỏng sau khi dùng", "trung tâm bảo hành"],
+      "synonyms": [
+        {"canonical": "bảo hành", "variants": ["warranty", "bh"]}
+      ],
+      "sample_questions": ["Sản phẩm hỏng, tôi bảo hành ở đâu?"],
+      "entities": ["ma_don_hang", "san_pham", "mo_ta_loi"],
+      "required_entities": ["ma_don_hang", "san_pham"],
+      "optional_entities": ["mo_ta_loi"],
+      "business_rules": [
+        "Chatbot đóng vai trò cung cấp thông tin, không tự xử lý bảo hành vật lý.",
+        "Kênh nộp yêu cầu thường là liên hệ trực tiếp seller hoặc trung tâm bảo hành chính hãng."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Xác định sản phẩm/đơn hàng và tính thời hạn bảo hành còn lại (dùng chung logic với WARRANTY_PERIOD_INQUIRY)"},
+        {"step": 2, "action": "Nếu còn hạn: hướng dẫn kênh nộp yêu cầu (RT_WARRANTY_ACTIVE)"},
+        {"step": 3, "action": "Nếu hết hạn: thông báo rõ và gợi ý lựa chọn khác (RT_WARRANTY_EXPIRED)"}
+      ],
+      "validation_rules": [
+        "Sản phẩm được hỏi phải khớp với sản phẩm thực sự có trong đơn của người dùng."
+      ],
+      "api_mapping": [
+        {"tool_id": "TOOL_WARRANTY_POLICY_LOOKUP"},
+        {"tool_id": "TOOL_WARRANTY_PURCHASE_DATE_LOOKUP"}
+      ],
+      "response_templates": {
+        "success_response": "RT_WARRANTY_ACTIVE",
+        "failure_response": "RT_WARRANTY_EXPIRED"
+      },
+      "follow_up_questions": ["Bạn mô tả giúp mình lỗi sản phẩm gặp phải nhé?"],
+      "escalation_rules": [
+        {"trigger": "sản phẩm bảo hành chính hãng (không qua seller) cần CSKH kết nối với hãng", "priority": "normal", "action": "escalate"}
+      ],
+      "logging": {"events": ["warranty_claim_requested"], "sensitivity": "normal"},
+      "analytics_tags": ["warranty_request_rate_by_product_seller"],
+      "cache_policy": {"cacheable": false, "reason": "gắn với đơn/sản phẩm cụ thể của user"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["hoi_thoi_han_bao_hanh", "san_pham_bi_loi"]
+    },
+    {
+      "id": "WARRANTY_CHANNEL_INQUIRY",
+      "domain": "07_warranty",
+      "sub_domain": "yeu_cau",
+      "intent": "bao_hanh_o_dau",
+      "description": "Giải thích bảo hành thuộc trách nhiệm seller, không phải Delippy trực tiếp bảo hành.",
+      "keywords": ["trung tâm bảo hành"],
+      "synonyms": [],
+      "sample_questions": ["Delippy có trung tâm bảo hành không?"],
+      "entities": [],
+      "required_entities": [],
+      "optional_entities": [],
+      "business_rules": [
+        "Delippy là marketplace nhiều seller, chính sách bảo hành thuộc về từng seller/sản phẩm, không phải chính sách thống nhất toàn sàn."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Trả lời bằng RT_WARRANTY_SELLER_RESPONSIBILITY"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [],
+      "response_templates": {
+        "success_response": "RT_WARRANTY_SELLER_RESPONSIBILITY",
+        "failure_response": "RT_ERROR_GENERIC_FALLBACK"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [],
+      "logging": {"events": ["intent_matched"], "sensitivity": "normal"},
+      "analytics_tags": ["bao_hanh_o_dau_rate"],
+      "cache_policy": {"cacheable": true, "reason": "nội dung tĩnh"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["yeu_cau_bao_hanh"]
+    },
+    {
+      "id": "WARRANTY_EXPIRED_NOTICE",
+      "domain": "07_warranty",
+      "sub_domain": "tra_cuu",
+      "intent": "san_pham_het_bao_hanh",
+      "description": "Thông báo sản phẩm đã hết hạn bảo hành và gợi ý lựa chọn khác.",
+      "keywords": [],
+      "synonyms": [
+        {"canonical": "hết hạn", "variants": ["quá hạn", "không còn hiệu lực"]}
+      ],
+      "sample_questions": ["Sản phẩm tôi hết bảo hành rồi phải không?"],
+      "entities": ["ma_don_hang", "san_pham"],
+      "required_entities": ["ma_don_hang", "san_pham"],
+      "optional_entities": [],
+      "business_rules": [
+        "Nếu hết hạn: thông báo rõ và gợi ý các lựa chọn khác (mua mới, dịch vụ sửa chữa ngoài)."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Dùng chung logic tính thời hạn với WARRANTY_PERIOD_INQUIRY"},
+        {"step": 2, "action": "Trả lời RT_WARRANTY_EXPIRED"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [
+        {"tool_id": "TOOL_WARRANTY_POLICY_LOOKUP"},
+        {"tool_id": "TOOL_WARRANTY_PURCHASE_DATE_LOOKUP"}
+      ],
+      "response_templates": {
+        "success_response": "RT_WARRANTY_EXPIRED",
+        "failure_response": "RT_ERROR_GENERIC_FALLBACK"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [],
+      "logging": {"events": ["warranty_expired_notice_shown"], "sensitivity": "normal"},
+      "analytics_tags": ["warranty_request_rate_by_product_seller"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["hoi_thoi_han_bao_hanh"]
+    }
+  ]
+}

@@ -40,6 +40,7 @@ from app.api.v1.account import router as account_router
 from app.api.v1.categories import router as categories_router
 from app.api.v1.chat import router as chat_router
 from app.api.v1.health import router as health_router
+from app.api.v1.help import router as help_router
 from app.api.v1.orders import router as orders_router
 from app.api.v1.products import router as products_router
 from app.api.v1.reviews import router as reviews_router
@@ -110,6 +111,17 @@ async def startup_event():
         import logging
         logging.getLogger(__name__).warning(f"[Startup] Failed to eager load Nomic model: {e}")
 
+    # Touch the /help Knowledge Base singleton once at real app boot (not just
+    # first import) so its fail-fast validation actually runs before serving
+    # traffic. Deliberately NOT wrapped in try/except like the steps above -
+    # those are "nice to have, don't block startup"; this one is the opposite
+    # by design (see app/knowledge/help/loader.py): APP_ENV=production MUST
+    # let HelpKnowledgeValidationError propagate and crash startup here,
+    # otherwise the fail-fast guarantee is silently defeated. Dev/staging
+    # never raises (only logs a warning), so this is a no-op there.
+    from app.knowledge.help.loader import HelpKnowledge
+    HelpKnowledge()
+
 
 
 @app.on_event("shutdown")
@@ -120,6 +132,7 @@ async def shutdown_event():
 # ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(health_router)
 app.include_router(chat_router)
+app.include_router(help_router)
 app.include_router(products_router)
 app.include_router(categories_router)
 app.include_router(reviews_router)

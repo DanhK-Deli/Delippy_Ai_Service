@@ -19,7 +19,7 @@ _PARSE_CACHE_TTL_DAYS = 14
 # (status quo, no worse). So err strict. This is a reasoned starting point, not
 # yet measured against real traffic - every cache HIT logs its similarity (see
 # parser.py), so tune this from those real values before loosening it.
-_PARSE_CACHE_MIN_SIMILARITY = 0.86
+_PARSE_CACHE_MIN_SIMILARITY = 0.92
 
 
 class ParseCacheRepository:

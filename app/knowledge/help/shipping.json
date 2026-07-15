@@ -1,0 +1,375 @@
+{
+  "_source": "docs/chatbot-cskh-knowledge-base-design.md#05_shipping",
+  "_deep_dive_domain": true,
+  "_design_note": "5 trạng thái kỹ thuật hiện có (pending/processing/onDelivery/completed/declined) không đủ chi tiết để tự thân trả lời đúng cho 9 giai đoạn trải nghiệm dưới đây. Cần tầng 'trạng thái phụ' (sub-status) bổ sung từ lịch sử tracking chi tiết (order_track) hoặc trường trạng thái riêng bên seller — [CẦN BỔ SUNG].",
+  "lifecycle_stages": [
+    {
+      "stage": 1,
+      "name": "Đặt hàng",
+      "technical_state": "pending",
+      "customer_allowed_actions": ["huỷ đơn tự do"],
+      "chatbot_must_say": "Xác nhận đơn đã được ghi nhận, đang chờ seller xác nhận, thời gian dự kiến seller phản hồi",
+      "chatbot_must_ask_if_missing": "Không cần hỏi thêm nếu đã có mã đơn",
+      "api_called": ["TOOL_ORDER_DETAIL"],
+      "response_template": "RT_SHIP_STAGE_1_ORDERED",
+      "escalate_when": "Nếu quá SLA xác nhận mà seller chưa phản hồi"
+    },
+    {
+      "stage": 2,
+      "name": "Đã xác nhận",
+      "technical_state": "processing (giai đoạn đầu)",
+      "customer_allowed_actions": ["huỷ đơn — còn cho phép, thường có phí/điều kiện tuỳ chính sách"],
+      "chatbot_must_say": "Đơn đã được seller xác nhận, đang chuẩn bị hàng, chưa có mã vận đơn",
+      "chatbot_must_ask_if_missing": "Không cần hỏi thêm",
+      "api_called": ["TOOL_ORDER_DETAIL"],
+      "response_template": "RT_SHIP_STAGE_2_CONFIRMED",
+      "escalate_when": "Nếu seller xác nhận rồi nhưng đứng yên quá lâu không chuyển sang đóng gói"
+    },
+    {
+      "stage": 3,
+      "name": "Đóng gói",
+      "technical_state": "processing (giai đoạn sau, trước khi có tracking)",
+      "customer_allowed_actions": ["huỷ đơn thường bị hạn chế hơn (có thể mất phí hoặc cần seller đồng ý)"],
+      "chatbot_must_say": "Đơn đang được chuẩn bị/đóng gói, sắp bàn giao vận chuyển",
+      "chatbot_must_ask_if_missing": "Không cần hỏi thêm",
+      "api_called": ["TOOL_ORDER_DETAIL"],
+      "response_template": "RT_SHIP_STAGE_3_PACKING",
+      "escalate_when": "Nếu thời gian đóng gói vượt cam kết của seller"
+    },
+    {
+      "stage": 4,
+      "name": "Đã bàn giao vận chuyển",
+      "technical_state": "onDelivery (bắt đầu)",
+      "customer_allowed_actions": ["không huỷ được nữa qua chatbot — huỷ lúc này cần seller/CSKH duyệt"],
+      "chatbot_must_say": "Đơn đã rời kho, cung cấp mã vận đơn và đơn vị vận chuyển",
+      "chatbot_must_ask_if_missing": "Không cần hỏi thêm, trừ khi cần xác nhận địa chỉ giao",
+      "api_called": ["TOOL_ORDER_DETAIL"],
+      "response_template": "RT_SHIP_STAGE_4_HANDED_OVER",
+      "escalate_when": "Nếu người dùng muốn huỷ ở giai đoạn này → giải thích chính sách + escalate nếu khách vẫn kiên quyết"
+    },
+    {
+      "stage": 5,
+      "name": "Đang giao",
+      "technical_state": "onDelivery",
+      "customer_allowed_actions": ["đổi địa chỉ/thời gian giao — nếu chính sách/đối tác vận chuyển cho phép, thường giới hạn"],
+      "chatbot_must_say": "Vị trí/mốc tracking gần nhất, ETA dự kiến",
+      "chatbot_must_ask_if_missing": "Nếu ETA đã trôi qua mà chưa giao: hỏi khách đã liên hệ tài xế/đơn vị vận chuyển chưa",
+      "api_called": ["TOOL_ORDER_DETAIL", "TOOL_SHIPPING_TRACKING_DETAIL"],
+      "response_template": "RT_SHIP_STAGE_5_IN_TRANSIT_WITH_ETA",
+      "response_template_no_eta": "RT_SHIP_STAGE_5_IN_TRANSIT_NO_ETA",
+      "escalate_when": "Nếu quá ETA nhiều giờ/ngày không có cập nhật tracking mới"
+    },
+    {
+      "stage": 6,
+      "name": "Giao thất bại",
+      "technical_state": "onDelivery (nhánh lỗi) hoặc chuyển hướng tới declined tuỳ chính sách sau nhiều lần thất bại",
+      "customer_allowed_actions": ["chọn giao lại", "đổi địa chỉ/SĐT liên hệ", "yêu cầu huỷ"],
+      "chatbot_must_say": "Lý do giao thất bại (không liên lạc được, sai địa chỉ, khách từ chối nhận...), số lần đã thử, các lựa chọn tiếp theo",
+      "chatbot_must_ask_if_missing": "Xác nhận khách còn muốn nhận hàng không; nếu có, xác nhận lại địa chỉ/SĐT",
+      "api_called": ["TOOL_SHIPPING_FAILURE_REASON"],
+      "response_template": "RT_SHIP_STAGE_6_DELIVERY_FAILED",
+      "escalate_when": "Ngay khi giao thất bại từ lần thứ 2 trở lên, hoặc lần đầu nếu lý do là lỗi hệ thống/địa chỉ không xác định"
+    },
+    {
+      "stage": 7,
+      "name": "Đã giao",
+      "technical_state": "completed",
+      "customer_allowed_actions": ["yêu cầu đổi trả/hoàn tiền (mở 06_return_refund)", "đánh giá sản phẩm"],
+      "chatbot_must_say": "Xác nhận đã giao thành công, thời gian giao, hướng dẫn quy trình đổi trả nếu có vấn đề, nhắc hạn đổi trả còn lại",
+      "chatbot_must_ask_if_missing": "Nếu khách báo 'chưa nhận được hàng nhưng hệ thống nói đã giao' → hỏi thời gian/người nhận hộ",
+      "api_called": ["TOOL_ORDER_DETAIL"],
+      "response_template": "RT_SHIP_STAGE_7_DELIVERED",
+      "escalate_when": "Nếu khách khẳng định chưa nhận được hàng dù hệ thống ghi 'đã giao' (nghi ngờ giao sai người/mất hàng) → escalate ngay"
+    },
+    {
+      "stage": 8,
+      "name": "Đổi trả",
+      "technical_state": "Trạng thái riêng của yêu cầu đổi trả, độc lập với 5 trạng thái đơn (xem return_refund.json)",
+      "customer_allowed_actions": ["gửi yêu cầu kèm lý do + hình ảnh", "theo dõi trạng thái duyệt"],
+      "chatbot_must_say": "Đã ghi nhận yêu cầu, các bước tiếp theo (seller/CSKH duyệt, gửi trả hàng nếu cần)",
+      "chatbot_must_ask_if_missing": "Lý do đổi trả, hình ảnh minh chứng, sản phẩm/dòng hàng cụ thể trong đơn",
+      "api_called": ["TOOL_RETURN_REQUEST_CREATE_LOCAL"],
+      "response_template": "RT_SHIP_STAGE_8_RETURN_INITIATED",
+      "escalate_when": "Toàn bộ domain đổi trả hiện có mức độ tự động hoá thấp do thiếu API — cân nhắc escalate sớm hơn cho tới khi backend hoàn thiện"
+    },
+    {
+      "stage": 9,
+      "name": "Hoàn tiền",
+      "technical_state": "Không có model riêng ở hệ thống hiện tại — cần return_refund.json định nghĩa như trạng thái con của yêu cầu đổi trả",
+      "customer_allowed_actions": ["theo dõi tiến độ hoàn tiền", "chọn lại phương thức nhận hoàn tiền nếu được hỗ trợ"],
+      "chatbot_must_say": "Xác nhận yêu cầu hoàn tiền đã được duyệt, số tiền, phương thức hoàn, thời gian dự kiến",
+      "chatbot_must_ask_if_missing": "Không cần hỏi thêm nếu đã có yêu cầu đổi trả liên kết",
+      "api_called": ["TOOL_REFUND_STATUS"],
+      "response_template": "RT_SHIP_STAGE_9_REFUND_PENDING",
+      "escalate_when": "Escalate khi quá thời gian cam kết hoàn tiền mà chưa nhận được, hoặc số tiền hoàn không khớp kỳ vọng của khách"
+    }
+  ],
+  "knowledge_objects": [
+    {
+      "id": "SHIPPING_TRACKING_LOOKUP",
+      "domain": "05_shipping",
+      "sub_domain": "tra_cuu",
+      "intent": "tra_cuu_van_don",
+      "description": "Tra cứu mã vận đơn và mốc tracking của một đơn.",
+      "keywords": ["vận đơn", "giao hàng"],
+      "synonyms": [
+        {"canonical": "vận đơn", "variants": ["mã tracking", "mã theo dõi"]}
+      ],
+      "sample_questions": ["Vận đơn của tôi là mã gì?", "Đơn tôi đang giao tới đâu rồi?"],
+      "entities": ["ma_don_hang", "ma_van_don"],
+      "required_entities": ["ma_don_hang"],
+      "optional_entities": ["ma_van_don"],
+      "business_rules": [
+        "Luôn ưu tiên đọc lịch sử tracking chi tiết nhất có thể trước khi trả lời bằng trạng thái kỹ thuật thô, vì trạng thái thô dễ gây hiểu lầm (ví dụ trả lời 'đang giao' trong khi thực tế vừa giao thất bại lần 2)."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Xác định đơn qua ma_don_hang"},
+        {"step": 2, "action": "Gọi TOOL_SHIPPING_TRACKING_DETAIL, fallback TOOL_ORDER_DETAIL nếu không lộ API riêng"},
+        {"step": 3, "action": "Map sang đúng giai đoạn 1-9 trong lifecycle_stages và render template tương ứng"}
+      ],
+      "validation_rules": [
+        "Mã vận đơn/đơn phải khớp.",
+        "Chỉ trả lời tracking chi tiết cho đúng chủ đơn."
+      ],
+      "api_mapping": [
+        {"tool_id": "TOOL_SHIPPING_TRACKING_DETAIL"},
+        {"tool_id": "TOOL_ORDER_DETAIL"}
+      ],
+      "response_templates": {
+        "success_response": "RT_SHIP_STAGE_5_IN_TRANSIT_WITH_ETA",
+        "failure_response": "RT_ORDER_NOT_FOUND"
+      },
+      "follow_up_questions": ["Bạn cho mình xin mã đơn hàng nhé?"],
+      "escalation_rules": [
+        {"trigger": "đơn thuộc diện đang có khiếu nại/escalate đang mở", "priority": "normal", "action": "ưu tiên nhắc 'yêu cầu của bạn đang được CSKH xử lý' thay vì lặp lại tracking cũ"}
+      ],
+      "logging": {"events": ["tracking_read"], "sensitivity": "normal", "note": "log đầy đủ chuỗi mốc tracking đã đọc cho khách tại từng thời điểm hỏi, để đối chiếu nếu có khiếu nại 'chatbot nói khác với thực tế'"},
+      "analytics_tags": ["avg_time_handoff_to_delivered_by_region"],
+      "cache_policy": {"cacheable": false, "reason": "trạng thái vận chuyển thay đổi liên tục"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["hang_dang_o_dau", "giao_thieu_du_kien_bao_lau"]
+    },
+    {
+      "id": "SHIPPING_WHERE_IS_MY_PACKAGE",
+      "domain": "05_shipping",
+      "sub_domain": "tra_cuu",
+      "intent": "hang_dang_o_dau",
+      "description": "Câu hỏi phổ biến nhất trong CSKH TMĐT — 'hàng tôi đâu rồi'.",
+      "keywords": ["hàng tới đâu rồi", "shipper"],
+      "synonyms": [
+        {"canonical": "shipper", "variants": ["người giao hàng", "đơn vị vận chuyển"]},
+        {"canonical": "chậm trễ", "variants": ["lâu", "trễ"]}
+      ],
+      "sample_questions": ["Hàng của tôi tới đâu rồi?"],
+      "entities": ["ma_don_hang"],
+      "required_entities": ["ma_don_hang"],
+      "optional_entities": [],
+      "business_rules": [
+        "Cùng nguyên tắc với tra_cuu_van_don — ưu tiên tracking chi tiết nhất trước khi dùng trạng thái thô."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Xác định đơn qua ma_don_hang"},
+        {"step": 2, "action": "Gọi TOOL_SHIPPING_TRACKING_DETAIL / TOOL_ORDER_DETAIL"},
+        {"step": 3, "action": "Render template theo đúng giai đoạn trong lifecycle_stages"}
+      ],
+      "validation_rules": [
+        "Mã đơn phải khớp; chỉ trả lời cho đúng chủ đơn."
+      ],
+      "api_mapping": [
+        {"tool_id": "TOOL_SHIPPING_TRACKING_DETAIL"},
+        {"tool_id": "TOOL_ORDER_DETAIL"}
+      ],
+      "response_templates": {
+        "success_response": "RT_SHIP_STAGE_5_IN_TRANSIT_WITH_ETA",
+        "failure_response": "RT_ORDER_NOT_FOUND"
+      },
+      "follow_up_questions": ["Bạn cho mình xin mã đơn hàng nhé?"],
+      "escalation_rules": [
+        {"trigger": "quá ETA nhiều giờ/ngày không có cập nhật tracking mới", "priority": "normal", "action": "escalate"}
+      ],
+      "logging": {"events": ["tracking_read"], "sensitivity": "normal"},
+      "analytics_tags": ["delivery_failure_rate_by_region_carrier"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["tra_cuu_van_don"]
+    },
+    {
+      "id": "SHIPPING_ETA_INQUIRY",
+      "domain": "05_shipping",
+      "sub_domain": "tra_cuu",
+      "intent": "giao_thieu_du_kien_bao_lau",
+      "description": "Hỏi thời gian giao dự kiến (ETA) còn lại.",
+      "keywords": [],
+      "synonyms": [
+        {"canonical": "thời gian giao", "variants": ["lâu", "bao lâu"]}
+      ],
+      "sample_questions": ["Bao lâu nữa thì hàng tới?"],
+      "entities": ["ma_don_hang"],
+      "required_entities": ["ma_don_hang"],
+      "optional_entities": [],
+      "business_rules": [
+        "Một số phương thức vận chuyển không cung cấp ETA — dùng biến thể template không ETA."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Xác định đơn qua ma_don_hang"},
+        {"step": 2, "action": "Gọi TOOL_SHIPPING_TRACKING_DETAIL"},
+        {"step": 3, "action": "Nếu có ETA: RT_SHIP_STAGE_5_IN_TRANSIT_WITH_ETA; nếu không: RT_SHIP_STAGE_5_IN_TRANSIT_NO_ETA"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [
+        {"tool_id": "TOOL_SHIPPING_TRACKING_DETAIL"}
+      ],
+      "response_templates": {
+        "success_response": "RT_SHIP_STAGE_5_IN_TRANSIT_WITH_ETA",
+        "failure_response": "RT_SHIP_STAGE_5_IN_TRANSIT_NO_ETA"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [
+        {"trigger": "ETA bị lệch do yếu tố ngoài hệ thống (thời tiết, khu vực xa) và khách không hài lòng", "priority": "normal", "action": "giải thích + escalate nếu cần"}
+      ],
+      "logging": {"events": ["eta_read"], "sensitivity": "normal"},
+      "analytics_tags": ["eta_accuracy_by_region"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["hang_dang_o_dau"]
+    },
+    {
+      "id": "SHIPPING_DELIVERY_FAILED",
+      "domain": "05_shipping",
+      "sub_domain": "su_co",
+      "intent": "giao_that_bai",
+      "description": "Xử lý khi giao hàng thất bại — lý do, số lần thử, lựa chọn tiếp theo.",
+      "keywords": ["giao thất bại"],
+      "synonyms": [
+        {"canonical": "giao thất bại", "variants": ["giao không thành công", "không gặp được người nhận"]}
+      ],
+      "sample_questions": ["Sao giao hàng thất bại vậy?"],
+      "entities": ["ma_don_hang", "ly_do_giao_that_bai"],
+      "required_entities": ["ma_don_hang"],
+      "optional_entities": ["ly_do_giao_that_bai"],
+      "business_rules": [
+        "= giai đoạn 6 trong lifecycle_stages.",
+        "Đơn có nhiều kiện hàng tách lẻ (marketplace nhiều seller trong 1 đơn) có thể dẫn tới trạng thái không đồng nhất giữa các kiện."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Xác định đơn qua ma_don_hang"},
+        {"step": 2, "action": "Gọi TOOL_SHIPPING_FAILURE_REASON"},
+        {"step": 3, "action": "Xác nhận khách còn muốn nhận hàng không; nếu có, xác nhận lại địa chỉ/SĐT"},
+        {"step": 4, "action": "Render RT_SHIP_STAGE_6_DELIVERY_FAILED với lựa chọn: giao lại / đổi địa chỉ / huỷ"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [
+        {"tool_id": "TOOL_SHIPPING_FAILURE_REASON"}
+      ],
+      "response_templates": {
+        "success_response": "RT_SHIP_STAGE_6_DELIVERY_FAILED",
+        "failure_response": "RT_ERROR_GENERIC_FALLBACK"
+      },
+      "follow_up_questions": ["Bạn có còn muốn nhận hàng không? Nếu có, mình xác nhận lại địa chỉ/SĐT giúp bạn nhé."],
+      "escalation_rules": [
+        {"trigger": "giao thất bại từ lần thứ 2 trở lên", "priority": "high", "action": "escalate"},
+        {"trigger": "lần đầu nhưng lý do là lỗi hệ thống/địa chỉ không xác định", "priority": "high", "action": "escalate"},
+        {"trigger": "mọi khiếu nại về thái độ shipper/đơn vị vận chuyển", "priority": "high", "action": "escalate"}
+      ],
+      "logging": {"events": ["delivery_failure_logged"], "sensitivity": "normal", "note": "log riêng số lần giao thất bại theo đơn/khu vực"},
+      "analytics_tags": ["delivery_failure_rate_by_region_carrier"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "high",
+      "confidence_threshold": "TODO",
+      "related_intents": ["doi_dia_chi_giao"]
+    },
+    {
+      "id": "SHIPPING_CHANGE_ADDRESS",
+      "domain": "05_shipping",
+      "sub_domain": "hanh_dong",
+      "intent": "doi_dia_chi_giao",
+      "description": "Yêu cầu đổi địa chỉ/SĐT nhận hàng khi đơn đang giao.",
+      "keywords": ["đổi địa chỉ nhận"],
+      "synonyms": [],
+      "sample_questions": ["Tôi muốn đổi địa chỉ nhận hàng"],
+      "entities": ["ma_don_hang", "dia_chi_giao_moi", "so_dien_thoai_nguoi_nhan"],
+      "required_entities": ["ma_don_hang", "dia_chi_giao_moi"],
+      "optional_entities": ["so_dien_thoai_nguoi_nhan"],
+      "business_rules": [
+        "Địa chỉ giao mới phải qua validate định dạng địa chỉ trước khi xác nhận với khách là 'đã ghi nhận yêu cầu đổi địa chỉ' — việc đổi thực tế có thể vẫn cần seller/đơn vị vận chuyển duyệt."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Xác định đơn qua ma_don_hang"},
+        {"step": 2, "action": "Thu thập địa chỉ mới + SĐT người nhận nếu có"},
+        {"step": 3, "action": "Validate định dạng địa chỉ"},
+        {"step": 4, "action": "Gọi TOOL_SHIPPING_ADDRESS_CHANGE_REQUEST"},
+        {"step": 5, "action": "Xác nhận đã ghi nhận yêu cầu (không đảm bảo thành công tuyệt đối vì còn cần seller/vận chuyển duyệt)"}
+      ],
+      "validation_rules": [
+        "Địa chỉ giao mới phải qua validate định dạng địa chỉ."
+      ],
+      "api_mapping": [
+        {"tool_id": "TOOL_SHIPPING_ADDRESS_CHANGE_REQUEST"}
+      ],
+      "response_templates": {
+        "success_response": "MISSING_FROM_DOCUMENT",
+        "failure_response": "RT_ESCALATE_GENERIC"
+      },
+      "follow_up_questions": ["Bạn cho mình xin địa chỉ giao mới nhé?"],
+      "escalation_rules": [
+        {"trigger": "yêu cầu đổi địa chỉ khi hàng đã đang trên xe giao", "priority": "high", "action": "escalate — rủi ro cao, cần con người quyết định"}
+      ],
+      "logging": {"events": ["address_change_requested"], "sensitivity": "normal"},
+      "analytics_tags": ["address_change_request_rate"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "high",
+      "confidence_threshold": "TODO",
+      "related_intents": ["giao_that_bai"]
+    },
+    {
+      "id": "SHIPPING_NOT_RECEIVED_BUT_MARKED_DELIVERED",
+      "domain": "05_shipping",
+      "sub_domain": "su_co",
+      "intent": "chua_nhan_duoc_hang_du_he_thong_bao_da_giao",
+      "description": "Khách khẳng định chưa nhận được hàng dù hệ thống ghi 'đã giao' — nghi ngờ giao sai người/mất hàng.",
+      "keywords": [],
+      "synonyms": [],
+      "sample_questions": ["Hệ thống báo đã giao nhưng tôi chưa nhận được hàng"],
+      "entities": ["ma_don_hang"],
+      "required_entities": ["ma_don_hang"],
+      "optional_entities": [],
+      "business_rules": [
+        "= giai đoạn 7 (nhánh sự cố) trong lifecycle_stages — template nhạy cảm nhất của toàn domain, cần văn phong trấn an + cam kết xử lý rõ ràng thay vì chỉ báo lỗi kỹ thuật.",
+        "Hỏi thời gian/người nhận hộ trước khi escalate."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Xác định đơn qua ma_don_hang"},
+        {"step": 2, "action": "Hỏi thời gian hệ thống ghi đã giao và có ai nhận hộ không"},
+        {"step": 3, "action": "Escalate ngay — RT_SHIP_NOT_RECEIVED_BUT_SYSTEM_SAYS_DELIVERED"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [
+        {"tool_id": "TOOL_ORDER_DETAIL"},
+        {"tool_id": "TOOL_CONTACT_TICKET_CREATE"}
+      ],
+      "response_templates": {
+        "success_response": "RT_SHIP_NOT_RECEIVED_BUT_SYSTEM_SAYS_DELIVERED",
+        "failure_response": "RT_SHIP_NOT_RECEIVED_BUT_SYSTEM_SAYS_DELIVERED"
+      },
+      "follow_up_questions": ["Bạn có ai ở nhà nhận hộ vào thời điểm đó không?"],
+      "escalation_rules": [
+        {"trigger": "khách khẳng định chưa nhận được hàng dù hệ thống ghi đã giao", "priority": "critical", "action": "escalate ngay"}
+      ],
+      "logging": {"events": ["delivered_but_not_received_reported"], "sensitivity": "high"},
+      "analytics_tags": ["delivered_but_not_received_rate"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "critical",
+      "confidence_threshold": "TODO",
+      "related_intents": ["yeu_cau_doi_tra"]
+    }
+  ]
+}

@@ -1,0 +1,175 @@
+{
+  "_source": "docs/chatbot-cskh-knowledge-base-design.md#09_promotion",
+  "_note": "Voucher có thể là toàn sàn hoặc riêng của seller (module coupon phía user / voucher phía seller). Ngoài voucher, sàn còn có điểm thưởng DP dùng trừ vào tổng tiền lúc thanh toán — điểm DP đã dùng KHÔNG hoàn lại kể cả khi đơn bị huỷ (xem RT_DP_POINTS_NOT_REFUNDABLE trong response_template.json).",
+  "knowledge_objects": [
+    {
+      "id": "VOUCHER_CONDITIONS_INQUIRY",
+      "domain": "09_promotion",
+      "sub_domain": "voucher",
+      "intent": "hoi_dieu_kien_voucher",
+      "description": "Giải thích điều kiện áp dụng của một mã voucher.",
+      "keywords": ["mã giảm giá", "voucher"],
+      "synonyms": [
+        {"canonical": "voucher", "variants": ["mã giảm giá", "coupon", "mã ưu đãi"]}
+      ],
+      "sample_questions": ["Mã ABC123 áp dụng điều kiện gì?"],
+      "entities": ["ma_voucher"],
+      "required_entities": ["ma_voucher"],
+      "optional_entities": ["ma_don_hang", "gia_tri_don_hang"],
+      "business_rules": [
+        "Kiểm tra voucher có thuộc phạm vi người dùng được nhận hay không trước khi giải thích chi tiết."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Xác định mã voucher"},
+        {"step": 2, "action": "Gọi TOOL_PROMOTION_VOUCHER_LOOKUP"},
+        {"step": 3, "action": "Trả lời RT_VOUCHER_CONDITIONS"}
+      ],
+      "validation_rules": [
+        "Mã voucher phải đúng định dạng."
+      ],
+      "api_mapping": [
+        {"tool_id": "TOOL_PROMOTION_VOUCHER_LOOKUP"}
+      ],
+      "response_templates": {
+        "success_response": "RT_VOUCHER_CONDITIONS",
+        "failure_response": "RT_VOUCHER_REJECT_REASON"
+      },
+      "follow_up_questions": ["Bạn cho mình xin mã voucher nhé?"],
+      "escalation_rules": [
+        {"trigger": "khách khẳng định đủ điều kiện nhưng hệ thống báo không áp dụng được", "priority": "normal", "action": "escalate — nghi ngờ lỗi"}
+      ],
+      "logging": {"events": ["voucher_condition_checked"], "sensitivity": "normal", "note": "log mã voucher + lý do từ chối áp dụng cho mỗi lượt hỏi"},
+      "analytics_tags": ["voucher_reject_rate_by_reason"],
+      "cache_policy": {"cacheable": false, "reason": "phải đối chiếu giỏ hàng/đơn hiện tại của đúng người dùng"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["sao_khong_ap_dung_duoc_voucher"]
+    },
+    {
+      "id": "VOUCHER_NOT_APPLICABLE",
+      "domain": "09_promotion",
+      "sub_domain": "voucher",
+      "intent": "sao_khong_ap_dung_duoc_voucher",
+      "description": "Giải thích lý do voucher không áp dụng được khi đặt đơn cụ thể.",
+      "keywords": ["sao không dùng được mã"],
+      "synonyms": [
+        {"canonical": "voucher", "variants": ["mã giảm giá", "coupon", "mã ưu đãi"]}
+      ],
+      "sample_questions": ["Sao mã này tôi không dùng được?"],
+      "entities": ["ma_voucher", "ma_don_hang", "gia_tri_don_hang"],
+      "required_entities": ["ma_voucher"],
+      "optional_entities": ["ma_don_hang", "gia_tri_don_hang"],
+      "business_rules": [
+        "Đối chiếu với đơn/giỏ hàng hiện tại của khách (giá trị đơn, ngành hàng, seller).",
+        "Nếu không đủ điều kiện, giải thích rõ điều kiện còn thiếu (ví dụ 'đơn cần tối thiểu X để áp mã này').",
+        "Voucher giới hạn số lượt dùng toàn hệ thống có thể đã hết dù người dùng chưa dùng lần nào.",
+        "Nhiều voucher không được cộng dồn nếu có xung đột."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Xác định mã voucher"},
+        {"step": 2, "action": "Gọi TOOL_PROMOTION_VOUCHER_LOOKUP đối chiếu với đơn/giỏ hàng hiện tại"},
+        {"step": 3, "action": "Trả lời RT_VOUCHER_REJECT_REASON theo đúng nguyên nhân (chưa đủ giá trị đơn/hết hạn/đã dùng/không áp dụng ngành hàng này)"}
+      ],
+      "validation_rules": [
+        "Mã voucher phải đúng định dạng."
+      ],
+      "api_mapping": [
+        {"tool_id": "TOOL_PROMOTION_VOUCHER_LOOKUP"}
+      ],
+      "response_templates": {
+        "success_response": "RT_VOUCHER_REJECT_REASON",
+        "failure_response": "RT_ESCALATE_GENERIC"
+      },
+      "follow_up_questions": ["Đơn hàng bạn đang đặt có giá trị bao nhiêu?"],
+      "escalation_rules": [
+        {"trigger": "khách khẳng định đủ điều kiện nhưng hệ thống báo không áp dụng được", "priority": "normal", "action": "escalate"},
+        {"trigger": "tranh chấp về voucher đã hiển thị nhưng biến mất trước khi dùng", "priority": "normal", "action": "escalate"}
+      ],
+      "logging": {"events": ["voucher_rejected"], "sensitivity": "normal"},
+      "analytics_tags": ["voucher_reject_rate_by_reason", "voucher_high_inquiry_low_success"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["voucher_het_han", "hoi_dieu_kien_voucher"]
+    },
+    {
+      "id": "VOUCHER_EXPIRED",
+      "domain": "09_promotion",
+      "sub_domain": "voucher",
+      "intent": "voucher_het_han",
+      "description": "Thông báo voucher đã hết hạn sử dụng.",
+      "keywords": ["mã hết hạn"],
+      "synonyms": [
+        {"canonical": "hết hạn", "variants": ["quá hạn", "không còn hiệu lực"]}
+      ],
+      "sample_questions": ["Mã này hết hạn chưa?"],
+      "entities": ["ma_voucher"],
+      "required_entities": ["ma_voucher"],
+      "optional_entities": [],
+      "business_rules": [
+        "Voucher có thể đã bị thu hồi do lỗi hệ thống phát hành nhầm — cần phân biệt với hết hạn thông thường."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Gọi TOOL_PROMOTION_VOUCHER_LOOKUP"},
+        {"step": 2, "action": "Trả lời RT_VOUCHER_REJECT_REASON với lý do = hết hạn/đã dùng"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [
+        {"tool_id": "TOOL_PROMOTION_VOUCHER_LOOKUP"}
+      ],
+      "response_templates": {
+        "success_response": "RT_VOUCHER_REJECT_REASON",
+        "failure_response": "RT_ERROR_GENERIC_FALLBACK"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [
+        {"trigger": "voucher bị thu hồi do lỗi hệ thống phát hành nhầm", "priority": "normal", "action": "escalate"}
+      ],
+      "logging": {"events": ["voucher_expired_checked"], "sensitivity": "normal"},
+      "analytics_tags": ["voucher_reject_rate_by_reason"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["sao_khong_ap_dung_duoc_voucher"]
+    },
+    {
+      "id": "VOUCHER_HOW_TO_GET",
+      "domain": "09_promotion",
+      "sub_domain": "voucher",
+      "intent": "lam_sao_nhan_voucher",
+      "description": "Gợi ý cách nhận voucher mới.",
+      "keywords": ["khuyến mãi hôm nay"],
+      "synonyms": [
+        {"canonical": "voucher", "variants": ["mã giảm giá", "coupon", "mã ưu đãi"]}
+      ],
+      "sample_questions": ["Làm sao để có voucher mới?"],
+      "entities": [],
+      "required_entities": [],
+      "optional_entities": [],
+      "business_rules": [
+        "MISSING_FROM_DOCUMENT — chưa có mô tả chi tiết nguồn/kênh phát hành voucher cụ thể."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Trả lời RT_VOUCHER_HOW_TO_GET_NEW"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [],
+      "response_templates": {
+        "success_response": "RT_VOUCHER_HOW_TO_GET_NEW",
+        "failure_response": "RT_ERROR_GENERIC_FALLBACK"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [],
+      "logging": {"events": ["intent_matched"], "sensitivity": "normal"},
+      "analytics_tags": ["lam_sao_nhan_voucher_rate"],
+      "cache_policy": {"cacheable": true, "reason": "nội dung phần lớn tĩnh"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": []
+    }
+  ]
+}

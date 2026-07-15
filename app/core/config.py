@@ -1,6 +1,12 @@
 import os
 
 class Settings:
+    # "development" (default) | "staging" | "production". Only consumer today
+    # is app/knowledge/help/loader.py's fail-fast Knowledge Base validation -
+    # dev/staging log-and-continue on a TODO/MISSING_FROM_DOCUMENT placeholder,
+    # production refuses to start. No other code branches on this yet.
+    APP_ENV: str = os.getenv("APP_ENV", "development").strip().lower()
+
     AI_PROVIDER: str = os.getenv("AI_PROVIDER", "gemini").strip().lower()
 
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY")

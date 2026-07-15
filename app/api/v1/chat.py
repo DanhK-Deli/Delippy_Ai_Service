@@ -19,6 +19,9 @@ class ChatResponse(BaseModel):
     warnings: list[str] = []
     source_list: list[dict] = []
     data: Optional[dict] = None
+    response_time_ms: Optional[float] = None
+    tokens_used: Optional[int] = None
+
 
 router = APIRouter(prefix="/api/v1", tags=["Chat"])
 

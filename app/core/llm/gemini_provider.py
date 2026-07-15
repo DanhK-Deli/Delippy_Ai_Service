@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+import asyncio
 from typing import List, Optional, Type
 
 from google import genai
@@ -12,30 +12,85 @@ from app.core.llm.base import LLMProvider, LLMResult, M
 class GeminiProvider(LLMProvider):
     name = "gemini"
 
+    # Gemini 2.5 Flash defaults to dynamic thinking (budget=-1) when
+    # thinking_config isn't set, silently spending latency/tokens even on
+    # pure extraction/formatting tasks with no multi-step reasoning to do -
+    # confirmed root cause of parser/formatter/scorer calls taking 5-19s on
+    # ~100-1000 token outputs. "cheap" calls are all such tasks. "deep_dive"
+    # (format_product_deep_dive) keeps a small explicit budget since it has
+    # to judge whether it actually recognizes a product rather than
+    # inventing specs - but deliberately uses the SAME model as "cheap"
+    # (see self.models below), not "complex": GEMINI_MODEL_COMPLEX falls
+    # back to GEMINI_ANALYSIS_MODEL in .env, which is gemini-2.5-pro in this
+    # deployment - several times pricier than flash per token. Reusing
+    # model_tier="complex" just to get a bigger thinking budget silently
+    # routed deep-dive onto pro instead of flash (confirmed live - a real
+    # bug this comment replaces). "complex" itself is kept defined and
+    # untouched for any future call site that genuinely needs a stronger
+    # model, not just more thinking budget. deep_dive's own budget was cut
+    # from 1024 to 256 - thinking tokens are generated (and cost latency)
+    # just like visible output, so a big budget directly worked against the
+    # "make deep-dive fast" goal; 256 is enough to catch an obviously-unknown
+    # product without adding much generation time.
+    _THINKING_BUDGET = {"cheap": 0, "complex": 1024, "deep_dive": 256}
+
+    # Hard backstop on deep-dive length: product_deep_dive_prompt.txt already
+    # asks for "150-200 từ" in plain text, but that's a soft request the
+    # model doesn't reliably obey (confirmed live - one real product got a
+    # 650-token/~350-word essay despite the prompt's own word-count line).
+    # IMPORTANT: Gemini counts thinking tokens against this SAME budget, not
+    # separately - confirmed live (max_output_tokens=500 with thinking_budget
+    # =1024 spent 478 tokens "thinking" and left only 18 for the actual
+    # answer, truncating it mid-sentence with finish_reason=MAX_TOKENS). 900
+    # comfortably covers deep_dive's 256 thinking-token budget PLUS a
+    # well-behaved ~150-250-word visible answer, with margin to finish the
+    # last sentence naturally instead of cutting off. Other tiers are
+    # untouched (None = SDK default, unbounded) - parser/formatter/scorer
+    # outputs are already shape-bounded by their own schema/task, so a cap
+    # there risks truncating a legitimate structured response instead of
+    # protecting against a runaway one.
+    _MAX_OUTPUT_TOKENS = {"deep_dive": 900}
+
     def __init__(self) -> None:
         self.client = genai.Client(api_key=settings.GEMINI_API_KEY) if settings.GEMINI_API_KEY else None
         self.models = {
             "cheap": settings.GEMINI_MODEL_CHEAP,
             "complex": settings.GEMINI_MODEL_COMPLEX,
+            # Explicit, not relying on the unrecognized-tier fallback below:
+            # deep-dive always uses the cheap/flash model, only the thinking
+            # budget differs (see _THINKING_BUDGET above).
+            "deep_dive": settings.GEMINI_MODEL_CHEAP,
         }
 
     def is_available(self) -> bool:
         return self.client is not None
 
-    async def generate_text(self, prompt: str, system_instruction: Optional[str] = None, model_tier: str = "cheap") -> LLMResult[str]:
+    async def generate_text(self, prompt: str, system_instruction: Optional[str] = None, model_tier: str = "cheap", timeout: float = 20.0) -> LLMResult[str]:
         if not self.is_available():
             raise RuntimeError("GEMINI_API_KEY is not set. Gemini provider is unavailable.")
 
         config = types.GenerateContentConfig()
         if system_instruction:
             config.system_instruction = system_instruction
+        config.thinking_config = types.ThinkingConfig(
+            thinking_budget=self._THINKING_BUDGET.get(model_tier, 0)
+        )
+        max_tokens = self._MAX_OUTPUT_TOKENS.get(model_tier)
+        if max_tokens:
+            config.max_output_tokens = max_tokens
 
         model = self.models.get(model_tier, self.models["cheap"])
-        response = self.client.models.generate_content(model=model, contents=prompt, config=config)
+        try:
+            response = await asyncio.wait_for(
+                self.client.aio.models.generate_content(model=model, contents=prompt, config=config),
+                timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            raise RuntimeError(f"Gemini API call timed out after {timeout} seconds due to network congestion or API latency.")
         prompt_tokens, completion_tokens = self._usage(response)
         return LLMResult(value=response.text or "", prompt_tokens=prompt_tokens, completion_tokens=completion_tokens)
 
-    async def generate_structured(self, prompt: str, response_schema: Type[M], system_instruction: Optional[str] = None, model_tier: str = "cheap") -> LLMResult[M]:
+    async def generate_structured(self, prompt: str, response_schema: Type[M], system_instruction: Optional[str] = None, model_tier: str = "cheap", timeout: float = 10.0) -> LLMResult[M]:
         if not self.is_available():
             raise RuntimeError("GEMINI_API_KEY is not set. Gemini provider is unavailable.")
 
@@ -54,9 +109,18 @@ class GeminiProvider(LLMProvider):
         )
         if system_instruction:
             config.system_instruction = system_instruction
+        config.thinking_config = types.ThinkingConfig(
+            thinking_budget=self._THINKING_BUDGET.get(model_tier, 0)
+        )
 
         model = self.models.get(model_tier, self.models["cheap"])
-        response = self.client.models.generate_content(model=model, contents=prompt, config=config)
+        try:
+            response = await asyncio.wait_for(
+                self.client.aio.models.generate_content(model=model, contents=prompt, config=config),
+                timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            raise RuntimeError(f"Gemini API call timed out after {timeout} seconds due to network congestion or API latency.")
         prompt_tokens, completion_tokens = self._usage(response)
         value = response_schema.model_validate_json(response.text)
         return LLMResult(value=value, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens)

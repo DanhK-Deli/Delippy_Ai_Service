@@ -1,0 +1,70 @@
+{
+  "_source": "docs/chatbot-cskh-knowledge-base-design.md#13_faq",
+  "_note": "Lưới an toàn (fallback nội dung) — nếu intent detection không map được vào domain 01-12/14, thử khớp FAQ trước khi rơi vào không xác định/escalate. Một intent bao trùm (hoi_faq_chung), phân biệt bằng entity chu_de_faq.",
+  "knowledge_objects": [
+    {
+      "id": "FAQ_GENERAL",
+      "domain": "13_faq",
+      "sub_domain": "faq_chung",
+      "intent": "hoi_faq_chung",
+      "description": "Câu hỏi thường gặp không thuộc rõ về một domain nghiệp vụ cụ thể nào (ví dụ: phí thường niên, đổi ngôn ngữ app, app bị treo).",
+      "keywords": [],
+      "synonyms": [],
+      "sample_questions": [
+        "App có phí thường niên không?",
+        "Làm sao đổi ngôn ngữ app?",
+        "Sao app bị treo?"
+      ],
+      "entities": ["chu_de_faq"],
+      "required_entities": [],
+      "optional_entities": ["chu_de_faq"],
+      "business_rules": [
+        "Cần rule ưu tiên domain nghiệp vụ cụ thể trước khi rơi về FAQ — câu hỏi tưởng là FAQ chung nhưng ý thực sự là hỏi về đơn/tài khoản của khách phải được domain nghiệp vụ tương ứng xử lý trước.",
+        "Rà soát định kỳ để loại bỏ FAQ lỗi thời (tính năng đã đổi cách hoạt động)."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Câu hỏi không khớp domain nghiệp vụ cụ thể (01-12/14)"},
+        {"step": 2, "action": "Thử khớp trong kho FAQ theo độ tương đồng"},
+        {"step": 3, "action": "Nếu khớp đủ tin cậy: trả lời trực tiếp nội dung FAQ (không cần thêm template khung ngoài)"},
+        {"step": 4, "action": "Nếu không khớp gì: coi như 'không xác định', áp dụng cơ chế hỏi lại/escalate chung"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [],
+      "response_templates": {
+        "success_response": "MISSING_FROM_DOCUMENT — câu trả lời chính là nội dung FAQ tương ứng, xem faq_entries",
+        "failure_response": "RT_ASK_MORE_INFO_GENERIC"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [
+        {"trigger": "câu hỏi không khớp FAQ nào và cũng không thuộc domain nào rõ ràng, sau khi đã hỏi làm rõ 1-2 lần", "priority": "normal", "action": "escalate"}
+      ],
+      "logging": {"events": ["faq_matched", "faq_unmatched"], "sensitivity": "normal", "note": "log các câu hỏi không khớp được FAQ nào — nguồn để bổ sung FAQ mới định kỳ"},
+      "analytics_tags": ["faq_top_questions", "faq_unmatched_rate"],
+      "cache_policy": {"cacheable": true, "reason": "nội dung tĩnh"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": []
+    }
+  ],
+  "faq_entries": [
+    {
+      "id": "FAQ_ENTRY_001",
+      "chu_de_faq": "phi_app",
+      "question_variants": ["App có phí thường niên không?"],
+      "answer": "MISSING_FROM_DOCUMENT"
+    },
+    {
+      "id": "FAQ_ENTRY_002",
+      "chu_de_faq": "doi_ngon_ngu",
+      "question_variants": ["Làm sao đổi ngôn ngữ app?"],
+      "answer": "MISSING_FROM_DOCUMENT"
+    },
+    {
+      "id": "FAQ_ENTRY_003",
+      "chu_de_faq": "app_bi_treo",
+      "question_variants": ["Sao app bị treo?"],
+      "answer": "MISSING_FROM_DOCUMENT"
+    }
+  ]
+}

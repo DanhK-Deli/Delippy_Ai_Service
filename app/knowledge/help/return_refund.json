@@ -1,0 +1,314 @@
+{
+  "_source": "docs/chatbot-cskh-knowledge-base-design.md#06_return_refund",
+  "_deep_dive_domain": true,
+  "_backend_gap_warning": "Module này mới chỉ có return_request_local_data_source (lưu cục bộ trên thiết bị), CHƯA có API thật ở backend chính. Quy trình duyệt/hoàn tiền thực tế hiện đang hoàn toàn phụ thuộc CSKH người thật xử lý thủ công — chatbot chỉ đóng vai trò tiếp nhận yêu cầu có cấu trúc. Đây là khoảng trống ưu tiên cao nhất trong toàn bộ 18 domain (xem tool.json TOOL_RETURN_REQUEST_CREATE_SERVER).",
+  "_lifecycle": "mới tạo → chờ seller/CSKH duyệt → được duyệt (chờ khách gửi trả hàng nếu cần) → đã nhận hàng trả (nếu áp dụng) → hoàn tiền đang xử lý → hoàn tiền hoàn tất, hoặc rẽ nhánh bị từ chối ở bước duyệt.",
+  "knowledge_objects": [
+    {
+      "id": "RETURN_REQUEST_CREATE",
+      "domain": "06_return_refund",
+      "sub_domain": "tao_yeu_cau",
+      "intent": "yeu_cau_doi_tra",
+      "description": "Tạo yêu cầu đổi trả cho một hoặc nhiều dòng sản phẩm cụ thể trong đơn đã giao.",
+      "keywords": ["trả hàng", "đổi hàng", "muốn trả lại"],
+      "synonyms": [
+        {"canonical": "đổi trả", "variants": ["return", "trả hàng hoàn tiền"]}
+      ],
+      "sample_questions": ["Tôi muốn trả hàng đơn DEL123456", "Sản phẩm này tôi muốn đổi"],
+      "entities": ["ma_don_hang", "san_pham_can_doi_tra", "ly_do_doi_tra", "hinh_anh_minh_chung", "phuong_thuc_hoan_tien_mong_muon"],
+      "required_entities": ["ma_don_hang", "san_pham_can_doi_tra", "ly_do_doi_tra"],
+      "optional_entities": ["hinh_anh_minh_chung", "phuong_thuc_hoan_tien_mong_muon"],
+      "business_rules": [
+        "Chỉ tạo được yêu cầu đổi trả từ một đơn cụ thể đã ở trạng thái 'đã giao' (05_shipping giai đoạn 7) và còn trong hạn đổi trả theo policy.return.timeframe (10_policy).",
+        "Không mặc định cả đơn — phải xác định (các) dòng sản phẩm cụ thể cần đổi trả.",
+        "Lý do đổi trả bắt buộc thuộc danh mục chuẩn hoá (sai sản phẩm, lỗi/hư hỏng, không đúng mô tả, đổi ý...), không nhận lý do tự do không phân loại được.",
+        "Bắt buộc có hình ảnh với các nhóm lý do yêu cầu bằng chứng (lỗi/hư hỏng/không đúng mô tả).",
+        "Hoàn tiền phải hoàn theo đúng phương thức đã thanh toán, hoặc phương thức thay thế khách chọn (liên quan 04_payment).",
+        "Nếu đơn dùng voucher, cần quy tắc rõ giá trị hoàn có bao gồm phần được giảm hay không (liên quan 09_promotion)."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Xác nhận đơn đã ở trạng thái 'đã giao' và còn trong hạn đổi trả theo 10_policy"},
+        {"step": 2, "action": "Xác định (các) dòng sản phẩm cụ thể cần đổi trả trong đơn"},
+        {"step": 3, "action": "Hỏi lý do (chọn theo nhóm chuẩn hoá)"},
+        {"step": 4, "action": "Yêu cầu đính kèm hình ảnh nếu lý do thuộc nhóm lỗi/hư hỏng/không đúng mô tả"},
+        {"step": 5, "action": "Xác nhận lại toàn bộ thông tin với khách"},
+        {"step": 6, "action": "Ghi nhận yêu cầu qua TOOL_RETURN_REQUEST_CREATE_LOCAL (hiện tại: lưu cục bộ + tạo ticket CSKH xử lý thủ công qua TOOL_CONTACT_TICKET_CREATE, do chưa có API duyệt tự động)"},
+        {"step": 7, "action": "Thông báo mã yêu cầu và bước tiếp theo dự kiến — RT_RETURN_REQUEST_CREATED"}
+      ],
+      "validation_rules": [
+        "Bắt buộc có lý do thuộc danh mục chuẩn hoá.",
+        "Bắt buộc có hình ảnh với các nhóm lý do yêu cầu bằng chứng.",
+        "Kiểm tra hạn đổi trả trước khi cho tạo yêu cầu.",
+        "Đơn thuộc đúng người dùng, đã ở trạng thái 'đã giao', còn trong hạn đổi trả, và (các) dòng sản phẩm được chọn thực sự thuộc đơn đó."
+      ],
+      "api_mapping": [
+        {"tool_id": "TOOL_RETURN_REQUEST_CREATE_LOCAL"},
+        {"tool_id": "TOOL_RETURN_EVIDENCE_UPLOAD"},
+        {"tool_id": "TOOL_CONTACT_TICKET_CREATE"}
+      ],
+      "response_templates": {
+        "success_response": "RT_RETURN_REQUEST_CREATED",
+        "failure_response": "RT_RETURN_WINDOW_REMINDER"
+      },
+      "follow_up_questions": ["Bạn muốn đổi trả sản phẩm nào trong đơn?", "Lý do đổi trả là gì?", "Bạn có thể gửi hình ảnh minh chứng không?"],
+      "escalation_rules": [
+        {"trigger": "toàn bộ bước duyệt và xử lý hoàn tiền thực tế (do chưa có API tự động)", "priority": "high", "action": "escalate/tạo ticket cho người xử lý"},
+        {"trigger": "hết hạn đổi trả nhưng khách vẫn khăng khăng yêu cầu do lỗi phát sinh muộn", "priority": "high", "action": "escalate xét ngoại lệ"},
+        {"trigger": "sản phẩm đã bị đổi trả một phần trước đó và khách yêu cầu đổi trả tiếp phần còn lại", "priority": "normal", "action": "escalate nếu business flow không xử lý được"}
+      ],
+      "logging": {"events": ["return_request_created"], "sensitivity": "normal", "note": "lưu đầy đủ lý do + hình ảnh + dòng sản phẩm liên quan cho mỗi yêu cầu — dữ liệu chất lượng sản phẩm/seller quan trọng"},
+      "analytics_tags": ["top_return_reasons_by_product_seller", "return_rate_by_seller", "avg_processing_time"],
+      "cache_policy": {"cacheable": false, "reason": "hành động ghi"},
+      "ttl": "TODO",
+      "priority": "high",
+      "confidence_threshold": "TODO",
+      "related_intents": ["san_pham_bi_loi", "giao_sai_san_pham", "khong_dung_mo_ta", "yeu_cau_hoan_tien"]
+    },
+    {
+      "id": "REFUND_REQUEST_NO_PHYSICAL_RETURN",
+      "domain": "06_return_refund",
+      "sub_domain": "tao_yeu_cau",
+      "intent": "yeu_cau_hoan_tien",
+      "description": "Yêu cầu hoàn tiền không kèm trả hàng vật lý (ví dụ đơn lỗi thanh toán, huỷ đơn sau khi đã thanh toán trước).",
+      "keywords": ["hoàn tiền"],
+      "synonyms": [
+        {"canonical": "hoàn tiền", "variants": ["refund", "trả lại tiền"]}
+      ],
+      "sample_questions": ["Tôi muốn hoàn tiền cho đơn đã huỷ"],
+      "entities": ["ma_don_hang", "so_tien", "phuong_thuc_hoan_tien_mong_muon"],
+      "required_entities": ["ma_don_hang"],
+      "optional_entities": ["so_tien", "phuong_thuc_hoan_tien_mong_muon"],
+      "business_rules": [
+        "Tách biệt khỏi luồng 'trả hàng vật lý' — không yêu cầu sản phẩm/hình ảnh minh chứng.",
+        "Gần như luôn cần CSKH xác nhận thủ công ở hiện trạng hệ thống."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Xác định đơn qua ma_don_hang"},
+        {"step": 2, "action": "Xác nhận số tiền, phương thức hoàn mong muốn"},
+        {"step": 3, "action": "Escalate/tạo ticket qua TOOL_CONTACT_TICKET_CREATE"}
+      ],
+      "validation_rules": [
+        "Đơn thuộc đúng người dùng."
+      ],
+      "api_mapping": [
+        {"tool_id": "TOOL_CONTACT_TICKET_CREATE"}
+      ],
+      "response_templates": {
+        "success_response": "RT_RETURN_REQUEST_CREATED",
+        "failure_response": "RT_ESCALATE_GENERIC"
+      },
+      "follow_up_questions": ["Bạn muốn nhận hoàn tiền qua phương thức nào?"],
+      "escalation_rules": [
+        {"trigger": "mọi yêu cầu hoàn tiền không kèm trả hàng vật lý", "priority": "high", "action": "escalate/tạo ticket vì cần CSKH xác nhận thủ công"}
+      ],
+      "logging": {"events": ["refund_request_created"], "sensitivity": "high"},
+      "analytics_tags": ["refund_without_return_rate"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "high",
+      "confidence_threshold": "TODO",
+      "related_intents": ["yeu_cau_doi_tra"]
+    },
+    {
+      "id": "RETURN_STATUS_CHECK",
+      "domain": "06_return_refund",
+      "sub_domain": "tra_cuu",
+      "intent": "kiem_tra_trang_thai_doi_tra",
+      "description": "Tra cứu trạng thái một yêu cầu đổi trả/hoàn tiền đã tạo.",
+      "keywords": [],
+      "synonyms": [],
+      "sample_questions": ["Yêu cầu đổi trả của tôi tới đâu rồi?"],
+      "entities": ["ma_don_hang", "ma_yeu_cau_doi_tra"],
+      "required_entities": [],
+      "optional_entities": ["ma_don_hang", "ma_yeu_cau_doi_tra"],
+      "business_rules": [
+        "Nếu bị từ chối, giải thích lý do (nếu có) và hướng dẫn khiếu nại tiếp nếu khách không đồng ý."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Tra cứu theo mã yêu cầu hoặc mã đơn"},
+        {"step": 2, "action": "Gọi TOOL_RETURN_REQUEST_STATUS / TOOL_REFUND_STATUS"},
+        {"step": 3, "action": "Trả lời theo trạng thái (đang chờ duyệt/đã duyệt/đang hoàn tiền/hoàn tất/bị từ chối)"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [
+        {"tool_id": "TOOL_RETURN_REQUEST_STATUS"},
+        {"tool_id": "TOOL_REFUND_STATUS"}
+      ],
+      "response_templates": {
+        "success_response": "RT_RETURN_STATUS_UPDATE",
+        "failure_response": "RT_RETURN_REJECTED"
+      },
+      "follow_up_questions": ["Bạn cho mình xin mã yêu cầu đổi trả hoặc mã đơn nhé?"],
+      "escalation_rules": [
+        {"trigger": "tranh chấp số tiền hoàn", "priority": "high", "action": "escalate"},
+        {"trigger": "từ chối mà khách không đồng ý", "priority": "high", "action": "escalate"}
+      ],
+      "logging": {"events": ["return_status_read"], "sensitivity": "normal", "note": "log thời gian từ lúc tạo yêu cầu tới lúc được xử lý thực tế (SLA cần theo dõi khi có API thật)"},
+      "analytics_tags": ["return_processing_time_avg"],
+      "cache_policy": {"cacheable": false, "reason": "trạng thái động"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["huy_yeu_cau_doi_tra"]
+    },
+    {
+      "id": "RETURN_PRODUCT_DEFECTIVE",
+      "domain": "06_return_refund",
+      "sub_domain": "tao_yeu_cau",
+      "intent": "san_pham_bi_loi",
+      "description": "Đổi trả do sản phẩm lỗi/hư hỏng — nhóm lý do bắt buộc kèm hình ảnh minh chứng.",
+      "keywords": ["hàng lỗi"],
+      "synonyms": [
+        {"canonical": "hàng lỗi", "variants": ["hư", "hỏng", "không hoạt động"]}
+      ],
+      "sample_questions": ["Sản phẩm tôi nhận bị hỏng"],
+      "entities": ["ma_don_hang", "san_pham_can_doi_tra", "hinh_anh_minh_chung"],
+      "required_entities": ["ma_don_hang", "san_pham_can_doi_tra", "hinh_anh_minh_chung"],
+      "optional_entities": [],
+      "business_rules": [
+        "Thuộc nhóm lý do bắt buộc có hình ảnh minh chứng.",
+        "Nếu lỗi phát hiện trong hạn đổi trả: xử lý theo domain này (nhanh hơn); nếu hết hạn đổi trả nhưng còn hạn bảo hành: chuyển sang 07_warranty."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Dùng chung conversation_flow của RETURN_REQUEST_CREATE với ly_do_doi_tra cố định = 'lỗi/hư hỏng'"},
+        {"step": 2, "action": "Nếu đã hết hạn đổi trả nhưng còn hạn bảo hành → chuyển sang 07_warranty (yeu_cau_bao_hanh)"}
+      ],
+      "validation_rules": [
+        "Bắt buộc có hình ảnh minh chứng."
+      ],
+      "api_mapping": [
+        {"tool_id": "TOOL_RETURN_REQUEST_CREATE_LOCAL"},
+        {"tool_id": "TOOL_RETURN_EVIDENCE_UPLOAD"}
+      ],
+      "response_templates": {
+        "success_response": "RT_RETURN_REQUEST_CREATED",
+        "failure_response": "RT_RETURN_EVIDENCE_MISSING"
+      },
+      "follow_up_questions": ["Bạn gửi giúp mình hình ảnh/video sản phẩm bị lỗi nhé?"],
+      "escalation_rules": [
+        {"trigger": "hết hạn đổi trả nhưng lỗi sản phẩm phát sinh muộn", "priority": "high", "action": "escalate xét ngoại lệ"}
+      ],
+      "logging": {"events": ["defect_return_requested"], "sensitivity": "normal"},
+      "analytics_tags": ["top_return_reasons_by_product_seller"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["yeu_cau_doi_tra", "yeu_cau_bao_hanh"]
+    },
+    {
+      "id": "RETURN_WRONG_PRODUCT",
+      "domain": "06_return_refund",
+      "sub_domain": "tao_yeu_cau",
+      "intent": "giao_sai_san_pham",
+      "description": "Đổi trả do giao sai sản phẩm so với đặt.",
+      "keywords": ["sai sản phẩm"],
+      "synonyms": [],
+      "sample_questions": ["Shop giao sai sản phẩm cho tôi"],
+      "entities": ["ma_don_hang", "san_pham_can_doi_tra"],
+      "required_entities": ["ma_don_hang", "san_pham_can_doi_tra"],
+      "optional_entities": ["hinh_anh_minh_chung"],
+      "business_rules": [
+        "Dùng chung conversation_flow của RETURN_REQUEST_CREATE với ly_do_doi_tra cố định = 'sai sản phẩm'."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Dùng chung conversation_flow của RETURN_REQUEST_CREATE"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [
+        {"tool_id": "TOOL_RETURN_REQUEST_CREATE_LOCAL"}
+      ],
+      "response_templates": {
+        "success_response": "RT_RETURN_REQUEST_CREATED",
+        "failure_response": "RT_RETURN_EVIDENCE_MISSING"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [],
+      "logging": {"events": ["wrong_product_return_requested"], "sensitivity": "normal"},
+      "analytics_tags": ["top_return_reasons_by_product_seller"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["yeu_cau_doi_tra", "don_hang_bi_sai_sot"]
+    },
+    {
+      "id": "RETURN_NOT_AS_DESCRIBED",
+      "domain": "06_return_refund",
+      "sub_domain": "tao_yeu_cau",
+      "intent": "khong_dung_mo_ta",
+      "description": "Đổi trả do sản phẩm không đúng như mô tả/hình ảnh trên sàn.",
+      "keywords": ["không giống hình"],
+      "synonyms": [],
+      "sample_questions": ["Sản phẩm không giống hình mô tả"],
+      "entities": ["ma_don_hang", "san_pham_can_doi_tra", "hinh_anh_minh_chung"],
+      "required_entities": ["ma_don_hang", "san_pham_can_doi_tra", "hinh_anh_minh_chung"],
+      "optional_entities": [],
+      "business_rules": [
+        "Thuộc nhóm lý do bắt buộc có hình ảnh minh chứng."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Dùng chung conversation_flow của RETURN_REQUEST_CREATE với ly_do_doi_tra cố định = 'không đúng mô tả'"}
+      ],
+      "validation_rules": [
+        "Bắt buộc có hình ảnh minh chứng."
+      ],
+      "api_mapping": [
+        {"tool_id": "TOOL_RETURN_REQUEST_CREATE_LOCAL"},
+        {"tool_id": "TOOL_RETURN_EVIDENCE_UPLOAD"}
+      ],
+      "response_templates": {
+        "success_response": "RT_RETURN_REQUEST_CREATED",
+        "failure_response": "RT_RETURN_EVIDENCE_MISSING"
+      },
+      "follow_up_questions": ["Bạn gửi giúp mình hình ảnh so sánh với mô tả gốc nhé?"],
+      "escalation_rules": [],
+      "logging": {"events": ["not_as_described_return_requested"], "sensitivity": "normal"},
+      "analytics_tags": ["top_return_reasons_by_product_seller"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["yeu_cau_doi_tra"]
+    },
+    {
+      "id": "RETURN_REQUEST_CANCEL",
+      "domain": "06_return_refund",
+      "sub_domain": "huy_yeu_cau",
+      "intent": "huy_yeu_cau_doi_tra",
+      "description": "Huỷ một yêu cầu đổi trả đã tạo (khách đổi ý).",
+      "keywords": [],
+      "synonyms": [],
+      "sample_questions": ["Tôi muốn huỷ yêu cầu đổi trả đã gửi"],
+      "entities": ["ma_yeu_cau_doi_tra"],
+      "required_entities": ["ma_yeu_cau_doi_tra"],
+      "optional_entities": [],
+      "business_rules": [
+        "MISSING_FROM_DOCUMENT — tài liệu liệt kê intent này nhưng không mô tả business flow riêng."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Xác định yêu cầu qua ma_yeu_cau_doi_tra"},
+        {"step": 2, "action": "MISSING_FROM_DOCUMENT — chưa rõ điều kiện được phép huỷ theo trạng thái nào"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [
+        {"tool_id": "TOOL_RETURN_REQUEST_STATUS"}
+      ],
+      "response_templates": {
+        "success_response": "MISSING_FROM_DOCUMENT",
+        "failure_response": "RT_ESCALATE_GENERIC"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [
+        {"trigger": "không rõ điều kiện huỷ theo tài liệu", "priority": "normal", "action": "escalate để CSKH xử lý thủ công"}
+      ],
+      "logging": {"events": ["return_request_cancel_attempted"], "sensitivity": "normal"},
+      "analytics_tags": ["return_request_cancel_rate"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["kiem_tra_trang_thai_doi_tra"]
+    }
+  ]
+}

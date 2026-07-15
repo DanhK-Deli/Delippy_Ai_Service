@@ -28,7 +28,7 @@ class ProductCard(BaseModel):
     price: Optional[float] = None
     original_price: Optional[float] = None
     discount_percent: Optional[int] = None
-    badges: list[str] = Field(default_factory=list)
+    badges: list[Union[str, dict]] = Field(default_factory=list)
     rating: Optional[float] = None
     ratings_count: Optional[int] = None
     sold_count: Optional[int] = None
@@ -72,7 +72,7 @@ class ProductDetail(BaseModel):
     stock: Optional[int] = None
     weight: Optional[Union[str, float, int]] = None
     details: Optional[str] = None
-    badges: list[str] = Field(default_factory=list)
+    badges: list[Union[str, dict]] = Field(default_factory=list)
     variant_colors: list[str] = Field(default_factory=list)
     sizes: list[dict] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)

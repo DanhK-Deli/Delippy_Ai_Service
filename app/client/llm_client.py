@@ -2,9 +2,13 @@ import json
 import os
 import threading
 from typing import Any, Dict, Optional, List
+from contextvars import ContextVar
 from app.core.llm import llm_provider
 from app.models.shopping_context import ShoppingContext
 from app.models.ai_scorer import AIScorerResponse
+
+request_tokens: ContextVar[int] = ContextVar("request_tokens", default=0)
+
 
 PROMPTS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "prompts")
 
@@ -35,6 +39,11 @@ def _fallback_context(query: str, product_options: Optional[List[Dict[str, Any]]
     return ShoppingContext(intent="SEARCH", query_q=query)
 
 def log_usage(action_name: str, input_tokens: int, output_tokens: int):
+    try:
+        current = request_tokens.get()
+        request_tokens.set(current + input_tokens + output_tokens)
+    except Exception:
+        pass
     print(f"\n[{llm_provider.name} API Usage - {action_name}]")
     print(f"  - Input Tokens : {input_tokens}")
     print(f"  - Output Tokens: {output_tokens}")
@@ -45,6 +54,7 @@ def log_usage(action_name: str, input_tokens: int, output_tokens: int):
         print(f"  - Est. Cost    : ${total_cost:.8f} USD (~{total_cost * 25400:.4f} VND)\n")
     else:
         print("  - Est. Cost    : n/a (no pricing table for this provider)\n")
+
 
 
 _nomic_tokenizer = None
@@ -155,6 +165,22 @@ class LLMClientWrapper:
             # (provider name, error codes, partial API key fragments like
             # "****EBo=") straight into the chat reply.
             print(f"\n[{llm_provider.name} - Error in Formatter] {e}.\n")
+            return "Xin lỗi bạn, kết nối AI hiện đang gặp gián đoạn. Vui lòng thử lại sau."
+
+    async def format_faq_response(self, query: str, history_str: str, policy_text: str) -> str:
+        template = load_prompt_template("faq_prompt.txt")
+        prompt = template.format(history=history_str, query=query, policy=policy_text or "")
+        if not llm_provider.is_available():
+            return "Xin lỗi bạn, kết nối AI hiện đang gặp gián đoạn. Vui lòng thử lại sau."
+        try:
+            result = await llm_provider.generate_text(
+                prompt=prompt,
+                model_tier="cheap"
+            )
+            log_usage("FAQ Formatter", result.prompt_tokens, result.completion_tokens)
+            return result.value
+        except Exception as e:
+            print(f"\n[{llm_provider.name} - Error in FAQ Formatter] {e}.\n")
             return "Xin lỗi bạn, kết nối AI hiện đang gặp gián đoạn. Vui lòng thử lại sau."
 
     async def format_zero_result_response(self, query: str, render_context: Dict[str, Any]) -> str:
@@ -292,7 +318,7 @@ class LLMClientWrapper:
         try:
             result = await llm_provider.generate_text(
                 prompt=prompt,
-                model_tier="cheap"
+                model_tier="deep_dive"
             )
             log_usage("Product Deep Dive", result.prompt_tokens, result.completion_tokens)
             return result.value

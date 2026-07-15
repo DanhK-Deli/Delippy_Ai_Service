@@ -1,0 +1,321 @@
+{
+  "_source": "docs/chatbot-cskh-knowledge-base-design.md#03_order",
+  "_deep_dive_domain": true,
+  "_lifecycle": {
+    "technical_states": ["pending", "processing", "onDelivery", "completed", "declined"],
+    "note": "Huỷ đơn là một hành động (gọi API huỷ), không phải nhánh trạng thái tách rời trong dữ liệu hiện có. 5 trạng thái kỹ thuật không đủ chi tiết để tự thân trả lời đúng cho các giai đoạn trải nghiệm — xem bảng ánh xạ đầy đủ ở shipping.json (giai đoạn 1-9)."
+  },
+  "knowledge_objects": [
+    {
+      "id": "ORDER_LOOKUP",
+      "domain": "03_order",
+      "sub_domain": "tra_cuu",
+      "intent": "tra_cuu_don_hang",
+      "description": "Tra cứu đơn hàng theo mã đơn hoặc theo mô tả (sản phẩm/khoảng thời gian) khi không nhớ mã.",
+      "keywords": ["đơn hàng của tôi", "đơn X", "tình trạng đơn"],
+      "synonyms": [
+        {"canonical": "đơn hàng", "variants": ["order", "đơn"]}
+      ],
+      "sample_questions": ["Đơn DEL123456 của tôi sao rồi?", "Đơn hàng tuần trước tôi đặt tới đâu rồi?"],
+      "entities": ["ma_don_hang", "khoang_thoi_gian", "ten_san_pham"],
+      "required_entities": [],
+      "optional_entities": ["ma_don_hang", "khoang_thoi_gian", "ten_san_pham"],
+      "business_rules": [
+        "Nếu có mã đơn → gọi API chi tiết đơn trực tiếp.",
+        "Nếu không có mã đơn → gọi API danh sách đơn của user (đã đăng nhập).",
+        "Nếu nhiều hơn 1 đơn khớp mô tả → liệt kê để người dùng chọn.",
+        "Chỉ gọi API đơn hàng khi user đã xác thực đăng nhập và order.user_id khớp với người đang hội thoại (chặn truy vấn chéo đơn của người khác dù có mã đơn)."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Kiểm tra có mã đơn hàng không"},
+        {"step": 2, "action": "Có mã đơn → gọi TOOL_ORDER_DETAIL"},
+        {"step": 3, "action": "Không có mã đơn → gọi TOOL_ORDER_LIST, lọc theo ten_san_pham/khoang_thoi_gian nếu có"},
+        {"step": 4, "action": "Nếu nhiều đơn khớp → liệt kê cho khách chọn"},
+        {"step": 5, "action": "Map trạng thái nhận được sang template tương ứng (RT_ORDER_STATUS_*, xem shipping.json cho sub-status chi tiết)"}
+      ],
+      "validation_rules": [
+        "Định dạng mã đơn hợp lệ.",
+        "Đơn phải thuộc về chính người dùng đang chat."
+      ],
+      "api_mapping": [
+        {"tool_id": "TOOL_ORDER_DETAIL"},
+        {"tool_id": "TOOL_ORDER_LIST"}
+      ],
+      "response_templates": {
+        "success_response": "RT_ORDER_STATUS_PENDING",
+        "failure_response": "RT_ORDER_NOT_FOUND"
+      },
+      "follow_up_questions": ["Bạn có mã đơn hàng không?", "Đơn hàng bạn hỏi có sản phẩm gì hoặc đặt khoảng thời gian nào?"],
+      "escalation_rules": [
+        {"trigger": "API báo lỗi nghiệp vụ không nằm trong danh sách exception đã biết", "priority": "normal", "action": "escalate"}
+      ],
+      "logging": {"events": ["order_status_read"], "sensitivity": "normal", "note": "log toàn bộ transition trạng thái được chatbot đọc ra, phục vụ audit 'chatbot đã nói gì với khách tại thời điểm nào'"},
+      "analytics_tags": ["order_lookup_not_found_rate"],
+      "cache_policy": {"cacheable": false, "reason": "trạng thái đơn thay đổi liên tục"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["kiem_tra_trang_thai_don", "khong_thay_don_hang", "xem_lich_su_don"]
+    },
+    {
+      "id": "ORDER_STATUS_CHECK",
+      "domain": "03_order",
+      "sub_domain": "tra_cuu",
+      "intent": "kiem_tra_trang_thai_don",
+      "description": "Kiểm tra trạng thái hiện tại của một đơn cụ thể.",
+      "keywords": ["tình trạng đơn", "đơn đang ở đâu"],
+      "synonyms": [
+        {"canonical": "đơn hàng", "variants": ["order", "đơn"]}
+      ],
+      "sample_questions": ["Đơn của tôi đang ở trạng thái gì?"],
+      "entities": ["ma_don_hang"],
+      "required_entities": ["ma_don_hang"],
+      "optional_entities": [],
+      "business_rules": [
+        "Giống luồng tra_cuu_don_hang nhưng luôn yêu cầu mã đơn trước (không tìm theo mô tả)."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Thiếu ma_don_hang → hỏi mã đơn"},
+        {"step": 2, "action": "Có mã đơn → gọi TOOL_ORDER_DETAIL"},
+        {"step": 3, "action": "Nhận kết quả → map trạng thái → render template theo trạng thái (RT_ORDER_STATUS_*)"}
+      ],
+      "validation_rules": [
+        "Định dạng mã đơn hợp lệ.",
+        "Đơn phải thuộc về chính người dùng đang chat."
+      ],
+      "api_mapping": [
+        {"tool_id": "TOOL_ORDER_DETAIL"}
+      ],
+      "response_templates": {
+        "success_response": "RT_ORDER_STATUS_PENDING",
+        "failure_response": "RT_ORDER_NOT_FOUND"
+      },
+      "follow_up_questions": ["Bạn cho mình xin mã đơn hàng nhé?"],
+      "escalation_rules": [
+        {"trigger": "timeout API", "priority": "normal", "action": "escalate theo 14_error_message"}
+      ],
+      "logging": {"events": ["order_status_read"], "sensitivity": "normal"},
+      "analytics_tags": ["order_status_check_rate"],
+      "cache_policy": {"cacheable": false, "reason": "trạng thái động"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["tra_cuu_don_hang"]
+    },
+    {
+      "id": "ORDER_HISTORY",
+      "domain": "03_order",
+      "sub_domain": "tra_cuu",
+      "intent": "xem_lich_su_don",
+      "description": "Xem lịch sử các đơn đã đặt.",
+      "keywords": ["đơn hàng của tôi"],
+      "synonyms": [
+        {"canonical": "đơn hàng", "variants": ["order", "đơn"]}
+      ],
+      "sample_questions": ["Cho tôi xem các đơn đã đặt trước đây"],
+      "entities": ["khoang_thoi_gian"],
+      "required_entities": [],
+      "optional_entities": ["khoang_thoi_gian"],
+      "business_rules": [
+        "MISSING_FROM_DOCUMENT — tài liệu liệt kê intent này nhưng không mô tả business flow riêng biệt với tra_cuu_don_hang; suy luận hợp lý là dùng chung TOOL_ORDER_LIST."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Gọi TOOL_ORDER_LIST, lọc theo khoang_thoi_gian nếu có"},
+        {"step": 2, "action": "Trả lời danh sách đơn kèm trạng thái từng đơn"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [
+        {"tool_id": "TOOL_ORDER_LIST"}
+      ],
+      "response_templates": {
+        "success_response": "MISSING_FROM_DOCUMENT",
+        "failure_response": "RT_ORDER_NOT_FOUND"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [],
+      "logging": {"events": ["order_history_read"], "sensitivity": "normal"},
+      "analytics_tags": ["order_history_view_rate"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["tra_cuu_don_hang"]
+    },
+    {
+      "id": "ORDER_CANCEL",
+      "domain": "03_order",
+      "sub_domain": "hanh_dong",
+      "intent": "huy_don_hang",
+      "description": "Huỷ một đơn hàng đang ở trạng thái cho phép huỷ.",
+      "keywords": ["huỷ đơn"],
+      "synonyms": [
+        {"canonical": "huỷ đơn", "variants": ["cancel", "không mua nữa", "đổi ý"]}
+      ],
+      "sample_questions": ["Tôi muốn huỷ đơn DEL123456"],
+      "entities": ["ma_don_hang", "ly_do_huy"],
+      "required_entities": ["ma_don_hang"],
+      "optional_entities": ["ly_do_huy"],
+      "business_rules": [
+        "Chỉ cho phép huỷ ở trạng thái pending/processing, KHÔNG cho phép khi đã 'on delivery' (quy tắc chuẩn của các sàn TMĐT).",
+        "Nếu không được phép huỷ (đã giao hàng) → giải thích và chuyển hướng sang 06_return_refund thay vì huỷ.",
+        "Điểm thưởng DP đã sử dụng cho đơn KHÔNG được hoàn lại kể cả khi đơn bị huỷ — phải thông báo rõ nếu đơn có dùng DP (xem RT_DP_POINTS_NOT_REFUNDABLE ở 09_promotion).",
+        "Validate trạng thái hiện tại nằm trong tập trạng thái được phép huỷ trước khi gọi API (chặn sớm ở business flow để trả lời nhanh và rõ ràng hơn)."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Xác định đơn qua ma_don_hang"},
+        {"step": 2, "action": "Kiểm tra trạng thái hiện tại có cho phép huỷ hay không"},
+        {"step": 3, "action": "Nếu được phép: hỏi xác nhận + lý do huỷ"},
+        {"step": 4, "action": "Gọi lại API lấy trạng thái mới nhất ngay trước khi xác nhận huỷ (chống race condition với seller vừa xử lý đơn)"},
+        {"step": 5, "action": "Gọi TOOL_ORDER_CANCEL"},
+        {"step": 6, "action": "Nếu không được phép (đã giao hàng): giải thích + chuyển hướng sang 06_return_refund (yeu_cau_doi_tra)"}
+      ],
+      "validation_rules": [
+        "Đơn phải thuộc về chính người dùng đang chat.",
+        "Validate trạng thái hiện tại nằm trong tập trạng thái được phép huỷ trước khi gọi API."
+      ],
+      "api_mapping": [
+        {"tool_id": "TOOL_ORDER_DETAIL", "note": "đọc trạng thái mới nhất trước khi huỷ"},
+        {"tool_id": "TOOL_ORDER_CANCEL"}
+      ],
+      "response_templates": {
+        "success_response": "RT_ORDER_CANCEL_SUCCESS",
+        "failure_response": "RT_ORDER_CANCEL_REJECTED"
+      },
+      "follow_up_questions": ["Bạn cho mình biết lý do huỷ đơn được không?"],
+      "escalation_rules": [
+        {"trigger": "người dùng khiếu nại 'đơn tôi bị huỷ mà tôi không huỷ'", "priority": "high", "action": "escalate"},
+        {"trigger": "tranh chấp giá trị đơn khác với lúc đặt", "priority": "high", "action": "escalate"},
+        {"trigger": "API huỷ trả lỗi do seller đã xử lý ngay trước đó (race condition)", "priority": "normal", "action": "gọi lại API lấy trạng thái mới nhất, báo khách trạng thái thực tế"}
+      ],
+      "logging": {"events": ["cancel_attempted", "cancel_succeeded", "cancel_rejected"], "sensitivity": "normal", "note": "lý do huỷ là dữ liệu quý cho seller/product team"},
+      "analytics_tags": ["order_cancel_rate_via_chatbot_vs_cskh", "top_cancel_reasons", "avg_pending_time_before_cancel_question"],
+      "cache_policy": {"cacheable": false, "reason": "hành động ghi, không cache"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["kiem_tra_trang_thai_don", "yeu_cau_doi_tra"]
+    },
+    {
+      "id": "ORDER_NOT_CONFIRMED_TOO_LONG",
+      "domain": "03_order",
+      "sub_domain": "sla",
+      "intent": "sao_don_chua_duoc_xac_nhan",
+      "description": "Xử lý khi đơn nằm ở trạng thái pending quá lâu chưa được seller xác nhận.",
+      "keywords": ["sao chưa xác nhận"],
+      "synonyms": [
+        {"canonical": "xác nhận đơn", "variants": ["duyệt đơn", "seller nhận đơn"]},
+        {"canonical": "chậm trễ", "variants": ["lâu", "trễ"]}
+      ],
+      "sample_questions": ["Sao đơn tôi mãi chưa được xác nhận?", "Đơn tôi sao lâu quá vậy?"],
+      "entities": ["ma_don_hang"],
+      "required_entities": ["ma_don_hang"],
+      "optional_entities": [],
+      "business_rules": [
+        "Kiểm tra thời gian đơn ở trạng thái pending — nếu vượt ngưỡng SLA xác nhận của seller mà hệ thống định nghĩa, giải thích + đề xuất tự huỷ nếu không muốn chờ, hoặc escalate để CSKH thúc seller."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Gọi TOOL_ORDER_DETAIL để lấy timestamp chuyển vào trạng thái pending"},
+        {"step": 2, "action": "So sánh với ngưỡng SLA xác nhận của seller (MISSING_FROM_DOCUMENT — chưa có con số cụ thể)"},
+        {"step": 3, "action": "Nếu vượt ngưỡng: giải thích + đề xuất tự huỷ (huy_don_hang) hoặc escalate thúc seller"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [
+        {"tool_id": "TOOL_ORDER_DETAIL"}
+      ],
+      "response_templates": {
+        "success_response": "RT_ORDER_STATUS_PENDING",
+        "failure_response": "RT_ESCALATE_GENERIC"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [
+        {"trigger": "seller không xác nhận đơn quá lâu (vi phạm SLA)", "priority": "normal", "action": "escalate để CSKH thúc seller xác nhận"}
+      ],
+      "logging": {"events": ["sla_breach_detected"], "sensitivity": "normal"},
+      "analytics_tags": ["avg_pending_time_before_question", "seller_confirmation_sla_indicator"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["huy_don_hang"]
+    },
+    {
+      "id": "ORDER_WRONG_ITEM_OR_QUANTITY",
+      "domain": "03_order",
+      "sub_domain": "sai_sot",
+      "intent": "don_hang_bi_sai_sot",
+      "description": "Đơn nhận được sai sản phẩm/số lượng so với đặt — thường dẫn sang 06_return_refund.",
+      "keywords": [],
+      "synonyms": [],
+      "sample_questions": ["Đơn tôi bị sai sản phẩm/thiếu số lượng"],
+      "entities": ["ma_don_hang"],
+      "required_entities": ["ma_don_hang"],
+      "optional_entities": [],
+      "business_rules": [
+        "Thường dẫn sang 06_return_refund (giao_sai_san_pham) thay vì xử lý trong domain order."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Xác định đơn qua ma_don_hang"},
+        {"step": 2, "action": "Chuyển hướng sang intent giao_sai_san_pham của 06_return_refund"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [
+        {"tool_id": "TOOL_ORDER_DETAIL"}
+      ],
+      "response_templates": {
+        "success_response": "RT_ASK_MORE_INFO_GENERIC",
+        "failure_response": "RT_ORDER_NOT_FOUND"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [],
+      "logging": {"events": ["redirected_to_return_refund"], "sensitivity": "normal"},
+      "analytics_tags": ["don_hang_bi_sai_sot_rate"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["giao_sai_san_pham"]
+    },
+    {
+      "id": "ORDER_NOT_FOUND_INTENT",
+      "domain": "03_order",
+      "sub_domain": "tra_cuu",
+      "intent": "khong_thay_don_hang",
+      "description": "Khách khẳng định có đặt hàng nhưng không tìm thấy đơn trong danh sách.",
+      "keywords": ["chưa thấy đơn"],
+      "synonyms": [
+        {"canonical": "đơn hàng", "variants": ["order", "đơn"]}
+      ],
+      "sample_questions": ["Tôi đặt hàng rồi mà không thấy đơn đâu cả"],
+      "entities": ["ten_san_pham", "khoang_thoi_gian"],
+      "required_entities": [],
+      "optional_entities": ["ten_san_pham", "khoang_thoi_gian"],
+      "business_rules": [
+        "Tỷ lệ hội thoại tra cứu đơn không tìm thấy đơn khớp có thể là chỉ báo lỗi UX tìm kiếm hoặc gian lận — theo dõi ở analytics."
+      ],
+      "conversation_flow": [
+        {"step": 1, "action": "Gọi TOOL_ORDER_LIST với các bộ lọc đã có"},
+        {"step": 2, "action": "Nếu không thấy → hỏi thêm chi tiết (thời gian đặt, tên sản phẩm)"},
+        {"step": 3, "action": "Nếu vẫn không thấy → RT_ORDER_NOT_FOUND, cân nhắc escalate nếu khách vẫn khẳng định đã đặt"}
+      ],
+      "validation_rules": [],
+      "api_mapping": [
+        {"tool_id": "TOOL_ORDER_LIST"}
+      ],
+      "response_templates": {
+        "success_response": "RT_ORDER_NOT_FOUND",
+        "failure_response": "RT_ORDER_NOT_FOUND"
+      },
+      "follow_up_questions": ["Bạn nhớ khoảng thời gian đặt hàng hoặc tên sản phẩm không?"],
+      "escalation_rules": [
+        {"trigger": "khách vẫn khẳng định đã đặt sau khi đã hỏi làm rõ 1-2 lần", "priority": "normal", "action": "escalate"}
+      ],
+      "logging": {"events": ["order_not_found"], "sensitivity": "normal"},
+      "analytics_tags": ["order_not_found_rate"],
+      "cache_policy": {"cacheable": false, "reason": "N/A"},
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": ["tra_cuu_don_hang"]
+    }
+  ]
+}
