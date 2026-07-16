@@ -96,6 +96,7 @@
     {"id": "CONTACT_CHANNELS_INQUIRY", "domain": "12_contact", "source_file": "contact.json", "triggering_intents": ["hoi_kenh_lien_he"], "tools_used": [], "templates_used": ["RT_CONTACT_CHANNELS_LIST", "RT_CONTACT_OUTSIDE_HOURS"], "version": "TODO"},
     {"id": "CONTACT_WANT_HUMAN", "domain": "12_contact", "source_file": "contact.json", "triggering_intents": ["muon_gap_nguoi_that"], "tools_used": ["TOOL_CONTACT_TICKET_CREATE"], "templates_used": ["RT_CONTACT_TICKET_CREATED_ACK"], "version": "TODO"},
     {"id": "CONTACT_WORKING_HOURS_INQUIRY", "domain": "12_contact", "source_file": "contact.json", "triggering_intents": ["hoi_gio_lam_viec_tong_dai"], "tools_used": [], "templates_used": ["RT_CONTACT_CHANNELS_LIST", "RT_CONTACT_OUTSIDE_HOURS"], "version": "TODO"},
+    {"id": "HELP_GREETING", "domain": "12_contact", "source_file": "contact.json", "triggering_intents": ["chao_hoi"], "tools_used": [], "templates_used": ["RT_HELP_GREETING"], "version": "TODO"},
 
     {"id": "FAQ_GENERAL", "domain": "13_faq", "source_file": "faq.json", "triggering_intents": ["hoi_faq_chung"], "tools_used": [], "templates_used": ["RT_ASK_MORE_INFO_GENERIC"], "version": "TODO"}
   ],

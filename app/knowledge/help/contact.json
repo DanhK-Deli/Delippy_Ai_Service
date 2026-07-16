@@ -235,6 +235,61 @@
       "related_intents": [
         "hoi_kenh_lien_he"
       ]
+    },
+    {
+      "id": "HELP_GREETING",
+      "domain": "12_contact",
+      "sub_domain": "chao_hoi",
+      "intent": "chao_hoi",
+      "description": "Chào hỏi và phản hồi người dùng lịch sự.",
+      "keywords": [
+        "chào",
+        "hello",
+        "hi",
+        "alo",
+        "helo",
+        "chao"
+      ],
+      "synonyms": [],
+      "sample_questions": [
+        "Chào bạn",
+        "Hello chatbot"
+      ],
+      "entities": [],
+      "required_entities": [],
+      "optional_entities": [],
+      "business_rules": [],
+      "conversation_flow": [
+        {
+          "step": 1,
+          "action": "Chào hỏi và mời đặt câu hỏi"
+        }
+      ],
+      "validation_rules": [],
+      "api_mapping": [],
+      "response_templates": {
+        "success_response": "RT_HELP_GREETING",
+        "failure_response": "RT_ERROR_GENERIC_FALLBACK"
+      },
+      "follow_up_questions": [],
+      "escalation_rules": [],
+      "logging": {
+        "events": [
+          "greetings"
+        ],
+        "sensitivity": "normal"
+      },
+      "analytics_tags": [
+        "greetings"
+      ],
+      "cache_policy": {
+        "cacheable": true,
+        "reason": "nội dung tĩnh"
+      },
+      "ttl": "TODO",
+      "priority": "normal",
+      "confidence_threshold": "TODO",
+      "related_intents": []
     }
   ]
 }

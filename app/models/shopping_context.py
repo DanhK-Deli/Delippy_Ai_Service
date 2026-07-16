@@ -77,3 +77,12 @@ class ShoppingContext(BaseModel):
     # subcategory/category never actually reaches search_engine - see its
     # query_q backfill.
     _no_text_search: bool = PrivateAttr(default=False)
+    # Set by parser.py when entity_extractor found no CONFIDENT category but
+    # did find a weak single-word guess (see ontology.find_category_weak()) -
+    # {"category": slug, "subcategory": name, "display": human-readable name}.
+    # response_planner.py turns this into a CLARIFICATION turn asking "bạn có
+    # muốn tìm loại {display} cụ thể không?" instead of silently searching
+    # with no category filter; memory_resolver.resolve_followup()'s caller
+    # applies it to the NEXT turn's context if the user confirms. Never used
+    # to filter THIS turn's search - only find_category()'s confident result is.
+    _category_confirm_candidate: Optional[dict] = PrivateAttr(default=None)

@@ -1,0 +1,319 @@
+{
+  "_domain_role": "app_flow — Real, verified in-app UI navigation (screen names, button labels, order of taps), transcribed from docs/chatbot-cskh-knowledge-base-design.md's flow catalogue (source: lib/l10n/app_vi.arb + corresponding page/widget files). Referenced from business_objects.json's json_sources the same way any other domain file is (domain_attr='app_flow', ko_id=<mã luồng>). Never edit steps/status here without first updating that source doc and re-transcribing - see the doc's own 'Ghi chú vận hành' section.",
+  "_source": "docs/chatbot-cskh-knowledge-base-design.md",
+  "_status_legend": {
+    "AVAILABLE": "🟢 Hoạt động đầy đủ - chatbot có thể hướng dẫn chắc chắn.",
+    "PARTIAL": "🟡 Có giao diện nhưng chưa xử lý thật (bấm vào chỉ hiện toast 'sắp ra mắt'/'đang phát triển') - chatbot phải nói rõ tính năng chưa khả dụng, không hướng dẫn như thể nó hoạt động.",
+    "BLOCKED": "🔴 Không có điểm vào trong UI - chatbot tuyệt đối không được hướng dẫn 'vào mục X để làm Y' vì X không tồn tại trên giao diện thật; phải chuyển hướng sang cách khác hoặc escalate CSKH."
+  },
+  "knowledge_objects": [
+    {
+      "id": "ACC-01",
+      "name": "Đăng ký tài khoản",
+      "status": "AVAILABLE",
+      "prerequisites": "Chưa đăng nhập.",
+      "steps": [
+        "Từ tab \"Tài khoản\" (chưa đăng nhập) hoặc màn Đăng nhập, bấm \"Đăng ký ngay\" / \"Đăng ký\".",
+        "Điền form: Họ tên, Email, Số điện thoại, Mật khẩu, Xác nhận mật khẩu.",
+        "Tick đồng ý \"Tôi đồng ý với Điều khoản sử dụng và Chính sách bảo mật\" (bắt buộc, không tick sẽ báo lỗi).",
+        "Bấm \"Đăng ký\".",
+        "App gửi mã OTP về email, chuyển tới màn \"Xác thực email\" - nhập mã 6 số, bấm \"Xác nhận\". Có thể bấm \"Gửi lại mã\" sau khi hết đếm ngược, hoặc \"Quay lại đăng ký\".",
+        "Xác thực thành công → tự động đăng nhập, vào Trang chủ."
+      ],
+      "business_rules": [
+        "OTP đăng ký gửi qua EMAIL đăng ký, không phải SMS - nếu khách hỏi 'sao không thấy tin nhắn', hỏi lại 'đã kiểm tra hộp thư email chưa' trước khi kết luận lỗi hệ thống."
+      ]
+    },
+    {
+      "id": "ACC-02",
+      "name": "Đăng nhập",
+      "status": "AVAILABLE",
+      "prerequisites": "Chưa đăng nhập.",
+      "steps": [
+        "Vào màn \"Đăng nhập tài khoản\" - từ nút \"Đăng nhập\" ở tab Tài khoản khi chưa login, hoặc app tự đưa tới màn này khi bấm vào chức năng cần đăng nhập.",
+        "Nhập \"Email hoặc số điện thoại\" và \"Mật khẩu\".",
+        "Bấm \"Đăng nhập\"."
+      ],
+      "business_rules": [
+        "Ô định danh nhận cả email lẫn số điện thoại - nếu khách chắc chắn nhớ đúng nhưng vẫn báo lỗi, hướng khách sang luồng quên mật khẩu (ACC-03) thay vì chỉ lặp lại 'thử lại'."
+      ]
+    },
+    {
+      "id": "ACC-03",
+      "name": "Quên mật khẩu",
+      "status": "AVAILABLE",
+      "prerequisites": "Chưa đăng nhập (không vào được app).",
+      "steps": [
+        "Tại màn Đăng nhập, bấm \"Quên mật khẩu?\".",
+        "Màn \"Quên mật khẩu?\" hiện ra, nhập \"Email\" đã đăng ký, bấm \"Gửi mã OTP\".",
+        "App chuyển sang màn nhập mã OTP (đặt lại mật khẩu) - nhập mã 6 số vừa nhận qua email, bấm xác nhận. Nếu hết hạn, bấm \"Gửi lại mã\".",
+        "Xác thực đúng → chuyển tới màn \"Tạo mật khẩu mới\".",
+        "Nhập \"Mật khẩu mới\" và \"Xác nhận mật khẩu\", bấm \"Đặt lại mật khẩu\".",
+        "Thành công → quay lại màn Đăng nhập, đăng nhập lại bằng mật khẩu mới."
+      ],
+      "business_rules": [
+        "Đây là luồng KHÁC HOÀN TOÀN với đổi mật khẩu khi đang đăng nhập (ACC-04) - luồng này dùng khi khách KHÔNG vào được app. Nếu khách đang đăng nhập bình thường chỉ muốn đổi mật khẩu, hướng dẫn theo ACC-04, không đưa luồng này (không cần nhập email lại, không cần OTP)."
+      ]
+    },
+    {
+      "id": "ACC-04",
+      "name": "Đổi mật khẩu (đã đăng nhập)",
+      "status": "AVAILABLE",
+      "prerequisites": "Đã đăng nhập.",
+      "steps": [
+        "Vào tab \"Tài khoản\".",
+        "Bấm mục \"Thông tin tài khoản\".",
+        "Trong màn \"Thông tin tài khoản\", kéo xuống mục \"Bảo mật & cài đặt\", bấm dòng \"Đổi mật khẩu\".",
+        "Màn \"Đổi mật khẩu\" hiện ra, nhập \"Mật khẩu hiện tại\", \"Mật khẩu mới\", \"Xác nhận mật khẩu mới\".",
+        "Bấm \"Cập nhật mật khẩu\".",
+        "Thành công → thông báo \"Đổi mật khẩu thành công.\", quay lại màn trước."
+      ],
+      "business_rules": [
+        "KHÔNG có mục 'Bảo mật'/'Security' riêng trên tab Tài khoản - đường vào duy nhất là qua 'Thông tin tài khoản'. Không hướng dẫn khách tìm một mục 'Bảo mật' độc lập vì mục đó không có nút bấm tới trong giao diện thật."
+      ]
+    },
+    {
+      "id": "ACC-05",
+      "name": "Đăng xuất",
+      "status": "AVAILABLE",
+      "prerequisites": "Đã đăng nhập.",
+      "steps": [
+        "Vào tab \"Tài khoản\", bấm icon bánh răng (cài đặt) ở góc trên bên phải.",
+        "Trong màn \"Cài đặt\", kéo xuống cuối, bấm nút đỏ \"Đăng xuất\".",
+        "Xuất hiện hộp thoại xác nhận \"Bạn có chắc muốn đăng xuất không?\" - bấm \"Đăng xuất\" để xác nhận, hoặc \"Hủy\" để huỷ bỏ.",
+        "Xác nhận → về Trang chủ ở chế độ khách."
+      ],
+      "business_rules": []
+    },
+    {
+      "id": "ACC-06",
+      "name": "Xem/sửa thông tin cá nhân",
+      "status": "AVAILABLE",
+      "prerequisites": "Đã đăng nhập.",
+      "steps": [
+        "Tab \"Tài khoản\" → bấm \"Thông tin tài khoản\".",
+        "Đổi ảnh đại diện: bấm vào ảnh đại diện (có nhãn 'Sửa') → chọn ảnh từ thư viện → tự động cập nhật.",
+        "Sửa thông tin: trong mục 'Thông tin cá nhân', bấm vào từng dòng để mở hộp thoại chỉnh sửa - 'Họ và tên', 'Số điện thoại', 'Địa chỉ' (đây là địa chỉ text hiển thị trên hồ sơ, KHÁC sổ địa chỉ giao hàng ở ACC-07).",
+        "Nhập giá trị mới, bấm 'Xác nhận' (hoặc 'Hủy' để bỏ qua).",
+        "Lưu thành công → thông báo cập nhật thành công."
+      ],
+      "business_rules": [
+        "Dòng 'Email' trong Thông tin tài khoản chỉ hiển thị (đã ẩn một phần), KHÔNG sửa được trực tiếp - nếu khách muốn đổi email đăng ký, đây là trường hợp cần escalate CSKH, không có tự phục vụ trong app."
+      ]
+    },
+    {
+      "id": "ACC-07",
+      "name": "Quản lý sổ địa chỉ giao hàng",
+      "status": "AVAILABLE",
+      "prerequisites": "Đã đăng nhập.",
+      "steps": [
+        "Tab \"Tài khoản\" → bấm mục \"Địa chỉ của tôi\" → vào màn \"Địa chỉ của tôi\" (danh sách toàn bộ địa chỉ đã lưu).",
+        "Thêm mới: bấm icon '+' hoặc nút 'Thêm địa chỉ mới' → điền Họ và tên người nhận, Số điện thoại, chọn Tỉnh/Huyện/Xã, nhập địa chỉ cụ thể (số nhà, tên đường), đặt nhãn (Nhà/Văn phòng...), bật/tắt 'Mặc định' → bấm 'Lưu'.",
+        "Sửa: trên mỗi thẻ địa chỉ, bấm 'Sửa' → chỉnh thông tin → 'Lưu'.",
+        "Đặt mặc định: bấm 'Đặt mặc định' trên địa chỉ chưa mặc định.",
+        "Xoá: bấm 'Xóa' trên thẻ địa chỉ → hộp thoại xác nhận 'Xóa địa chỉ?' → bấm 'Xóa' để xác nhận, 'Hủy' để giữ lại."
+      ],
+      "business_rules": [
+        "Sửa/xoá địa chỉ trong sổ địa chỉ KHÔNG tự động cập nhật địa chỉ giao của các đơn đã đặt trước đó (đơn dùng 'ảnh chụp' địa chỉ tại thời điểm đặt hàng)."
+      ]
+    },
+    {
+      "id": "ACC-08",
+      "name": "Xoá tài khoản",
+      "status": "PARTIAL",
+      "prerequisites": "Đã đăng nhập.",
+      "blocked_message": "Xoá tài khoản KHÔNG hoàn tất ngay trong app. Sau khi khách xác nhận trong app, hệ thống mở một trình duyệt ngoài tới trang delippy.com/request-data-deletion - khách phải hoàn tất yêu cầu TRÊN TRANG WEB ĐÓ, việc xoá không xảy ra ngay trong app. Luôn nói rõ bước cuối diễn ra trên web, không phải trong app, để khách không tưởng lầm là đã xoá xong ngay sau khi bấm nút trong app.",
+      "steps": [
+        "Tab \"Tài khoản\" → cuối danh sách menu, bấm \"Xóa tài khoản\".",
+        "Xuất hiện cảnh báo hệ quả (mất điểm thưởng, voucher, lịch sử mua hàng vĩnh viễn; thông tin đơn hàng cũ vẫn lưu theo quy định pháp luật) - bấm \"Xóa tài khoản\" để tiếp tục, \"Hủy\" để dừng lại.",
+        "Nếu xác nhận, app mở trình duyệt ngoài tới trang delippy.com/request-data-deletion - khách hoàn tất yêu cầu trên trang web đó."
+      ],
+      "business_rules": []
+    },
+    {
+      "id": "ACC-09",
+      "name": "Đăng nhập/liên kết mạng xã hội (Google)",
+      "status": "BLOCKED",
+      "prerequisites": "N/A.",
+      "blocked_message": "Nút đăng nhập Google đã bị ẩn khỏi giao diện (tồn tại ở tầng xử lý nhưng không có nút để bấm), và KHÔNG có đăng nhập Facebook trong app. Hiện app chỉ hỗ trợ đăng nhập bằng email/số điện thoại + mật khẩu. Không hướng dẫn khách tìm nút Google vì nút đó không hiển thị trên app hiện tại. Nếu khách khăng khăng nhớ từng dùng được, escalate CSKH để xác minh (có thể tài khoản cũ liên kết trước đây).",
+      "steps": [],
+      "business_rules": []
+    },
+    {
+      "id": "ACC-10",
+      "name": "Đăng ký bán hàng trên Delippy (Seller)",
+      "status": "PARTIAL",
+      "prerequisites": "Đã đăng nhập.",
+      "blocked_message": "Với tài khoản chưa phải người bán, bấm mục 'Bán hàng cùng Delippy' (không hiện trên iOS) chỉ hiện hộp thoại thông báo 'Vui lòng liên hệ quản trị viên.' - KHÔNG có form đăng ký bán hàng ngay trong app. Đây là do chính sách App Store, không phải lỗi - trả lời khách cần liên hệ CSKH/quản trị viên trực tiếp để được hỗ trợ mở gian hàng.",
+      "steps": [
+        "Tab \"Tài khoản\" → bấm mục \"Bán hàng cùng Delippy\" (mục này không hiện trên iOS).",
+        "Với tài khoản chưa phải người bán: chỉ hiện hộp thoại thông báo 'Vui lòng liên hệ quản trị viên.'"
+      ],
+      "business_rules": []
+    },
+    {
+      "id": "SHOP-01",
+      "name": "Mua hàng đầy đủ (xem sản phẩm → đặt hàng)",
+      "status": "AVAILABLE",
+      "prerequisites": "Không bắt buộc đăng nhập để xem, cần đăng nhập để đặt hàng.",
+      "steps": [
+        "Vào trang chi tiết sản phẩm, bấm 'Thêm vào giỏ hàng' (để mua sau) hoặc 'Mua ngay' (để đặt hàng ngay). Nếu hết hàng, nút hiện 'Hết hàng' và không bấm được. Nếu chưa đăng nhập, app yêu cầu đăng nhập trước khi tiếp tục.",
+        "Chọn thuộc tính trong bảng hiện lên (Màu sắc, Kích thước, Tùy chọn khác nếu có), chỉnh số lượng, rồi bấm nút xác nhận. Nếu bấm 'Mua ngay' → app bỏ qua trang Giỏ hàng, vào thẳng Checkout. Nếu bấm 'Thêm vào giỏ hàng' → hiện thông báo đã thêm.",
+        "Vào Giỏ hàng: sản phẩm nhóm theo từng shop. Tick chọn sản phẩm muốn mua (hoặc 'Chọn tất cả'). Bấm 'Thanh toán' ở cuối trang (chỉ bấm được khi đã chọn hết các sản phẩm hiện có trong giỏ).",
+        "Vào màn 'Đặt hàng' (Checkout): chọn địa chỉ giao hàng (hoặc thêm địa chỉ mới nếu chưa có), chọn 'Phương thức vận chuyển', chọn 'Phương thức thanh toán' (Thanh toán khi nhận hàng - COD, hoặc Chuyển khoản - SePay), có thể ghi 'Ghi chú đơn hàng', áp mã giảm giá và dùng điểm DP nếu muốn.",
+        "Bấm 'Đặt hàng'. Nếu chọn COD → chuyển thẳng tới trang 'Đặt hàng thành công'. Nếu chọn SePay → chuyển tới màn quét mã QR thanh toán trước.",
+        "Ở trang thành công, có 2 lựa chọn: 'Theo dõi đơn hàng' (vào thẳng danh sách đơn, tab Đang xử lý) hoặc 'Tiếp tục mua sắm' (về Trang chủ)."
+      ],
+      "business_rules": [
+        "Nếu chưa chọn địa chỉ giao hàng, app báo lỗi khi bấm đặt hàng."
+      ]
+    },
+    {
+      "id": "SHOP-02",
+      "name": "Thanh toán qua SePay (quét mã QR)",
+      "status": "AVAILABLE",
+      "prerequisites": "Đã chọn phương thức thanh toán 'Chuyển khoản (SePay)' ở bước Checkout.",
+      "steps": [
+        "Sau khi bấm 'Đặt hàng', app chuyển tới màn quét mã QR: hiện mã QR, số tiền cần chuyển, nội dung chuyển khoản (có nút copy), và trạng thái 'Đang chờ thanh toán...' kèm đồng hồ đếm ngược.",
+        "Khách mở app ngân hàng, quét mã QR (hoặc chuyển khoản đúng nội dung), hoàn tất chuyển khoản.",
+        "App tự động kiểm tra trạng thái thanh toán theo chu kỳ - không cần bấm gì thêm. Nếu ghi nhận thanh toán thành công → tự chuyển sang trang 'Đặt hàng thành công'. Nếu hết hạn/thất bại → hiện hộp thoại với nút 'Xem chi tiết đơn hàng'."
+      ],
+      "business_rules": [
+        "Việc xác nhận thanh toán có độ trễ do đối soát ngân hàng - nếu khách báo 'đã chuyển tiền nhưng vẫn thấy đang chờ', trước tiên trấn an chờ thêm vài phút, không vội kết luận lỗi hệ thống; nếu quá lâu, escalate kèm thông tin đơn để đối soát."
+      ]
+    },
+    {
+      "id": "SHOP-03",
+      "name": "Áp dụng mã giảm giá (voucher sàn + voucher shop)",
+      "status": "AVAILABLE",
+      "prerequisites": "Cần đăng nhập để áp mã.",
+      "steps": [
+        "Mã giảm giá toàn sàn: ở Giỏ hàng hoặc Checkout, tìm mục 'Mã giảm giá toàn đơn' → nhập mã vào ô 'Nhập mã giảm giá...' → bấm 'Áp dụng'. Sau khi áp dụng, hiện dòng 'Đã áp dụng {mã} - Giảm {số tiền}' kèm nút 'Xoá' để gỡ mã.",
+        "Mã giảm giá riêng của shop: mỗi nhóm sản phẩm theo shop có ô 'Mã shop / Chọn mã giảm giá' → bấm mở danh sách mã khả dụng cho shop đó (hoặc chọn 'Không dùng mã') → chọn 1 mã, tự động áp dụng."
+      ],
+      "business_rules": [
+        "Nếu chưa đăng nhập mà bấm áp mã ở Giỏ hàng, app báo 'Bạn cần đăng nhập để áp dụng mã giảm giá'.",
+        "Nếu mã báo lỗi dù khách chắc chắn còn hạn/đủ điều kiện, đây là trường hợp cần escalate để kiểm tra điều kiện mã cụ thể, chatbot không tự khẳng định lý do."
+      ]
+    },
+    {
+      "id": "SHOP-04",
+      "name": "Sử dụng điểm thưởng DP khi thanh toán",
+      "status": "AVAILABLE",
+      "prerequisites": "Đã đăng nhập, có điểm DP khả dụng.",
+      "steps": [
+        "Ở Giỏ hàng hoặc Checkout, với sản phẩm cho phép dùng điểm, bấm dòng 'Dùng điểm DP'.",
+        "Hộp thoại 'Sử dụng điểm DP' hiện ra: số dư điểm hiện có, số điểm tối đa được dùng cho đơn này, các nút chọn nhanh (+100/+500/+1000/+5000 điểm) hoặc tự nhập số điểm, kèm số tiền được giảm tương ứng.",
+        "Bấm 'Xác nhận' để áp dụng."
+      ],
+      "business_rules": [
+        "QUY TẮC QUAN TRỌNG: điểm DP đã sử dụng cho một đơn sẽ KHÔNG được hoàn lại, kể cả khi đơn đó bị huỷ sau đó. Đây là câu trả lời chuẩn phải nêu rõ mỗi khi khách hỏi về hoàn điểm DP sau huỷ đơn."
+      ]
+    },
+    {
+      "id": "ORD-01",
+      "name": "Xem danh sách đơn hàng theo trạng thái",
+      "status": "AVAILABLE",
+      "prerequisites": "Đã đăng nhập.",
+      "steps": [
+        "Tab \"Tài khoản\" → mục \"Đơn hàng của tôi\".",
+        "Có 2 cách xem: bấm 'Xem tất cả' → vào danh sách đơn (mặc định ở tab đầu); hoặc bấm thẳng 1 trong 5 icon trạng thái để lọc ngay: 'Chờ xác nhận', 'Đang xử lý', 'Chờ giao hàng', 'Hoàn thành', 'Đã hủy'.",
+        "Trong màn danh sách, có thanh tab để chuyển qua lại giữa 5 trạng thái trên. Mỗi đơn hiển thị dưới dạng thẻ, có nút 'Xem chi tiết', và nếu đơn đang 'Chờ xác nhận' thì có thêm nút 'Hủy' ngay tại đây."
+      ],
+      "business_rules": [
+        "Nút tìm kiếm trên màn danh sách đơn hiện chỉ hiện thông báo 'Sắp ra mắt' - chưa tìm kiếm được theo tên sản phẩm/mã đơn tại đây.",
+        "Icon 'hỗ trợ' trên mỗi thẻ đơn chỉ hiện email tĩnh support@delippy.app, không phải kênh chat thật."
+      ]
+    },
+    {
+      "id": "ORD-02",
+      "name": "Xem chi tiết đơn hàng",
+      "status": "AVAILABLE",
+      "prerequisites": "Đã đăng nhập.",
+      "steps": [
+        "Từ danh sách đơn (ORD-01), bấm 'Xem chi tiết' trên đơn cần xem → vào màn 'Chi tiết đơn hàng'.",
+        "Màn hiển thị: trạng thái đơn, mã đơn (bấm để copy), ngày đặt, thanh tiến trình ngang gồm 4 mốc (Chờ xác nhận → Đang xử lý → Đang giao → Hoàn tất - ẩn hoàn toàn nếu đơn đã huỷ), thông tin giao hàng, danh sách sản phẩm, và tổng kết tiền (tạm tính, giảm giá shop, giảm giá sàn, điểm DP đã dùng, phí vận chuyển, tổng tiền).",
+        "Các nút hành động ở cuối trang tuỳ theo trạng thái đơn: 'Hủy đơn' (chỉ hiện khi đơn đang Chờ xác nhận/Đang xử lý), 'Liên hệ shop' (luôn hiện nhưng chưa hoạt động thật), và với mỗi sản phẩm đã Hoàn thành chưa đánh giá thì có nút 'Đánh giá'."
+      ],
+      "business_rules": []
+    },
+    {
+      "id": "ORD-03",
+      "name": "Huỷ đơn hàng",
+      "status": "AVAILABLE",
+      "prerequisites": "Đơn phải đang ở trạng thái 'Chờ xác nhận' (huỷ được cả ở danh sách và chi tiết đơn) hoặc 'Đang xử lý' (chỉ huỷ được ở màn chi tiết đơn). Từ 'Chờ giao hàng'/'Đang giao' trở đi, hoặc đã 'Hoàn thành'/'Đã hủy', KHÔNG thể huỷ qua app nữa.",
+      "steps": [
+        "Vào chi tiết đơn hoặc danh sách đơn, bấm 'Hủy đơn'.",
+        "Hộp thoại xác nhận hiện ra: 'Bạn có chắc chắn muốn huỷ đơn hàng này không?' - bấm 'Xác nhận' để huỷ, 'Đóng' để giữ nguyên.",
+        "Huỷ thành công → thông báo 'Hủy đơn hàng thành công.'"
+      ],
+      "business_rules": [
+        "QUAN TRỌNG: app KHÔNG có bước chọn lý do huỷ - quy trình thật trong app chỉ có 1 bước xác nhận, không hỏi lý do gì cả.",
+        "Nếu đơn đã sang trạng thái không cho huỷ mà khách vẫn muốn huỷ, giải thích rõ lý do và chuyển hướng (đơn đang giao → chờ nhận rồi xử lý theo đổi trả/escalate); không được hứa hẹn huỷ giúp qua chatbot.",
+        "Nhắc kèm quy tắc điểm DP không hoàn lại nếu đơn có dùng điểm."
+      ]
+    },
+    {
+      "id": "ORD-04",
+      "name": "Theo dõi vận chuyển",
+      "status": "AVAILABLE",
+      "prerequisites": "Đã đăng nhập.",
+      "steps": [
+        "Vào Chi tiết đơn hàng (ORD-02).",
+        "Xem thanh tiến trình ngang ở đầu trang - đây chính là nơi hiển thị tiến độ vận chuyển: Chờ xác nhận → Đang xử lý → Đang giao → Hoàn tất."
+      ],
+      "business_rules": [
+        "App KHÔNG có một trang 'tra cứu vận đơn' riêng biệt hay timeline chi tiết theo từng mốc thời gian/địa điểm của đơn vị vận chuyển - toàn bộ thông tin tiến độ chỉ gói gọn trong 4 mốc ở trang chi tiết đơn.",
+        "Không hứa hẹn cung cấp thông tin 'vị trí shipper hiện tại' hay mốc tracking chi tiết hơn vì hệ thống hiện chưa có mức chi tiết đó."
+      ]
+    },
+    {
+      "id": "ORD-05",
+      "name": "Liên hệ shop về đơn hàng",
+      "status": "PARTIAL",
+      "prerequisites": "Đã đăng nhập.",
+      "blocked_message": "Nút 'Liên hệ shop' luôn hiện trong Chi tiết đơn hàng, nhưng bấm vào CHỈ hiện thông báo 'Sắp ra mắt' - chưa có kênh chat/liên hệ shop thật trong app. Hiện app chưa hỗ trợ nhắn tin trực tiếp với shop; nếu khách cần liên hệ shop, hướng dẫn qua kênh hỗ trợ chung (email support@delippy.app hiển thị trên thẻ đơn, hoặc escalate CSKH) thay vì chỉ nói 'bấm nút Liên hệ shop'.",
+      "steps": [],
+      "business_rules": []
+    },
+    {
+      "id": "ORD-06",
+      "name": "Yêu cầu đổi trả sản phẩm",
+      "status": "BLOCKED",
+      "prerequisites": "N/A.",
+      "blocked_message": "Màn hình yêu cầu đổi trả ĐÃ được lập trình sẵn (chọn sản phẩm cần trả, chọn lý do trong 4 nhóm: sản phẩm lỗi/hỏng, giao sai sản phẩm, không đúng mô tả, khác - kèm ô nhập mô tả nếu chọn 'khác'), nhưng KHÔNG có bất kỳ nút hay mục menu nào trong app dẫn tới màn này - người dùng không có cách nào tự mở được. Mục đính kèm ảnh minh chứng trên màn này cũng mới chỉ là placeholder, chưa upload ảnh thật được. TUYỆT ĐỐI không hướng dẫn 'vào đơn hàng, bấm yêu cầu đổi trả...'. Thay vào đó: xin lỗi vì app hiện chưa hỗ trợ tự thao tác đổi trả, thu thập mã đơn hàng + sản phẩm cần đổi trả + lý do (theo 4 nhóm: lỗi/hỏng, giao sai, không đúng mô tả, khác) + mô tả/ảnh nếu khách gửi được qua kênh khác, rồi chuyển cho CSKH xử lý thủ công.",
+      "steps": [],
+      "business_rules": []
+    },
+    {
+      "id": "ORD-07",
+      "name": "Đánh giá sản phẩm sau khi nhận hàng",
+      "status": "AVAILABLE",
+      "prerequisites": "Đơn đã ở trạng thái 'Hoàn thành', sản phẩm đó chưa được đánh giá trước đó.",
+      "steps": [
+        "Vào Chi tiết đơn hàng, tìm sản phẩm cần đánh giá, bấm nút 'Đánh giá'.",
+        "Vào màn 'Viết đánh giá': chọn 1-5 sao ('Bạn cảm thấy sản phẩm thế nào?'), tuỳ chọn viết nhận xét chi tiết, tuỳ chọn thêm tối đa 1 ảnh (dưới 5MB) qua chụp ảnh hoặc chọn từ thư viện.",
+        "Bấm 'Gửi đánh giá' (chỉ bấm được sau khi đã chọn số sao).",
+        "Thành công → thông báo 'Đánh giá thành công!', quay lại đơn hàng, sản phẩm chuyển sang trạng thái 'Đã đánh giá'."
+      ],
+      "business_rules": []
+    },
+    {
+      "id": "BOT-01",
+      "name": "Truy cập chatbot & chuyển đổi mode Tư vấn/CSKH",
+      "status": "AVAILABLE",
+      "prerequisites": "Không bắt buộc đăng nhập để mở chatbot; một số câu hỏi bên trong vẫn cần đăng nhập.",
+      "steps": [
+        "Icon chatbot hình nổi (kéo-thả được) chỉ hiện trên 3 màn: Trang chủ, Tìm kiếm, Kết quả tìm kiếm - ẩn ở các màn khác, và ẩn hoàn toàn nếu app đang ở chế độ Người bán.",
+        "Bấm icon → mở khung chat.",
+        "Bấm nút '...' trong khung chat để chuyển đổi giữa 2 chế độ: 'Tư vấn mua sắm' (trợ lý AI gợi ý/tìm sản phẩm) và 'Chăm sóc khách hàng' (hỗ trợ CSKH - đơn hàng, thanh toán...).",
+        "Ở chế độ 'Chăm sóc khách hàng' khi đã đăng nhập, phía trên ô nhập tin nhắn có thêm nút 'Theo dõi đơn hàng' - bấm vào để chọn nhanh 1 đơn, hệ thống tự điền câu hỏi vào khung chat để bot trả lời.",
+        "Nếu bot yêu cầu đăng nhập để trả lời, app tự hiện hộp thoại 'Yêu cầu đăng nhập' với nút 'Đăng nhập' đưa thẳng tới màn đăng nhập."
+      ],
+      "business_rules": [
+        "Màn chào có 4 gợi ý nhanh, nhưng chỉ 'Tìm sản phẩm' hoạt động thật; 'So sánh giá', 'Theo dõi đơn', 'Hỗ trợ 24/7' hiện chỉ hiện thông báo 'tính năng đang phát triển' - không giới thiệu các gợi ý này như đã hoạt động.",
+        "Nút 'Theo dõi đơn hàng' trong khung chat CSKH chỉ là lối tắt để chọn nhanh 1 đơn rồi hỏi bot ngay trong chat - không mở ra thêm thông tin gì khác ngoài trang chi tiết đơn (ORD-04)."
+      ]
+    }
+  ]
+}

@@ -19,9 +19,10 @@ class ChatResponse(BaseModel):
     warnings: list[str] = []
     source_list: list[dict] = []
     data: Optional[dict] = None
+    # Debug/observability metrics - see app/models/help.py's HelpResponse for
+    # the same fields on the /help side.
     response_time_ms: Optional[float] = None
     tokens_used: Optional[int] = None
-
 
 router = APIRouter(prefix="/api/v1", tags=["Chat"])
 

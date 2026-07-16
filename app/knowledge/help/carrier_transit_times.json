@@ -1,0 +1,10 @@
+{
+  "_domain_role": "Curated, non-fabricated average transit-time reference per REAL shipping carrier Delippy actually integrates with (confirmed via live order API responses - do not add a carrier here on guesswork). This is general public knowledge about the carrier's own typical service, NOT an official SLA commitment from Delippy or the carrier - Step 3 must always present it as an approximation ('thường thì'/'trung bình') and never as a guaranteed delivery date. A carrier NOT listed here has no curated data on file - see help_step3_respond_prompt.txt's rule: the chatbot must say so honestly rather than let the model guess from its own unverified training knowledge.",
+  "_source": "Xác nhận trực tiếp với người dùng (chủ dự án Delippy) qua hội thoại - không phải suy đoán của AI.",
+  "carriers": {
+    "viettelpost": {
+      "display_name": "Viettel Post",
+      "avg_transit_time_text": "Viettel Post thường giao trong khoảng 1-2 ngày cho quãng đường ngắn (khoảng 100km) hoặc nội tỉnh; có thể lâu hơn với khu vực xa. Viettel Post cũng có dịch vụ giao hoả tốc, giao trong khoảng 1-2 giờ cho các tuyến nội thành."
+    }
+  }
+}

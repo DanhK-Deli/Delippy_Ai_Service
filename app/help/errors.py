@@ -10,7 +10,7 @@ from app.knowledge.help.loader import help_knowledge
 class MissingAuthError(Exception):
     """Raised BEFORE any network call - never actually sent to the backend.
     Per .agents/AGENTS.md rule 3: a Guest (no token) attempting a Protected
-    Action must not reach the backend API at all; flow_executor.py's
+    Action must not reach the backend API at all; business_object_executor.py's
     _run_tool() raises this the moment it sees tool.json's required_auth=true
     with no token supplied, instead of making the call and waiting for a
     real 401."""
@@ -75,7 +75,7 @@ def error_mapping_for(group: ErrorGroup) -> Dict[str, Any]:
 
 
 def handle_exception(exc: Exception, *, token_was_supplied: bool) -> Tuple[ErrorGroup, str, bool]:
-    """Single entry point flow_executor.py calls for any tool-call exception.
+    """Single entry point business_object_executor.py calls for any tool-call exception.
     Returns (group, response_template_id, escalate_immediately)."""
     group = classify_exception(exc, token_was_supplied=token_was_supplied)
     mapping = error_mapping_for(group)

@@ -16,4 +16,5 @@ async def help_endpoint(request: Request, payload: HelpRequest):
         session_id,
         token=token,
         user_id=payload.user_id,
+        selected_order_id=payload.selected_order_id,
     )

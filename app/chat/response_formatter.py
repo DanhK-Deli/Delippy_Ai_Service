@@ -210,6 +210,10 @@ class ResponseFormatter:
             if evidence.error:
                 print("\n[Formatter] Skipped LLM Formatting: CLARIFICATION matches upstream error message (Tokens: 0, Cost: $0.00)\n")
                 return evidence.error
+            if plan.reason == "category_confirm":
+                display = ((plan.target or {}).get("candidate") or {}).get("display") or "sản phẩm này"
+                print("\n[Formatter] Skipped LLM Formatting: SEARCH weak-category matches deterministic confirm question (Tokens: 0, Cost: $0.00)\n")
+                return f"Bạn có muốn tìm loại {display} cụ thể không?"
             clarify_templates = ontology.clarifying_questions_for(context.category)
             term = context.query_q or ontology.category_display_name(context.category) or "sản phẩm này"
             question = random.choice(clarify_templates).format(term=term)

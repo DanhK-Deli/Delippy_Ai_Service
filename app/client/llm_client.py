@@ -1,16 +1,25 @@
+import contextvars
 import json
 import os
 import threading
 from typing import Any, Dict, Optional, List
-from contextvars import ContextVar
 from app.core.llm import llm_provider
 from app.models.shopping_context import ShoppingContext
 from app.models.ai_scorer import AIScorerResponse
-
-request_tokens: ContextVar[int] = ContextVar("request_tokens", default=0)
-
+from app.understanding.intent_classifier import strip_no_preference_phrasing
+from app.understanding.entity_extractor import entity_extractor
 
 PROMPTS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "prompts")
+
+# Accumulates total token usage (input+output) across every LLM call made
+# during the lifespan of a single incoming API request - each request is
+# handled in its own asyncio Task (FastAPI/Starlette), and a ContextVar's
+# value is scoped to that Task's context, so concurrent requests never see
+# each other's running total. Callers (app/help/orchestrator.py,
+# app/chat/orchestrator.py) reset it to 0 at the start of process_*_message()
+# and read the final value right before returning, to report `tokens_used`
+# in the response for debug/observability purposes.
+request_tokens: contextvars.ContextVar[int] = contextvars.ContextVar("request_tokens", default=0)
 
 # $/token, (input, output). Only providers/tiers with a confidently-known
 # published rate are listed - unknown combos just log token counts, since a
@@ -36,14 +45,34 @@ def _fallback_context(query: str, product_options: Optional[List[Dict[str, Any]]
         candidates = [p for p in product_options if p.get("slug")]
         if len(candidates) == 1:
             return ShoppingContext(intent="PRODUCT_INFO", product=candidates[0]["slug"])
-    return ShoppingContext(intent="SEARCH", query_q=query)
+    cleaned_query = strip_no_preference_phrasing(query) or query
+
+    # A bare price-narrowing reply ("dưới 500k") has no product noun of its
+    # own - memory_resolver.resolve() is built to detect exactly that (see its
+    # own "dưới 500k" comment) and carry the PRIOR turn's real query_q/category
+    # forward instead, but only when THIS turn's query_q is falsy. The normal
+    # AI parser path already leaves query_q null for these replies (it has
+    # conversation history to recognize them); this fallback has neither
+    # history nor an LLM to make that call, so without this check it echoed
+    # the raw price phrase back as query_q on every Gemini timeout/error,
+    # which memory_resolver then reads as a brand-new, unrelated topic and
+    # wipes the real category/brand/price it was supposed to narrow.
+    # Confirmed live: "tìm sữa" (category=sieu-thi-bach-hoa) -> too-vague
+    # clarifying question -> "dưới 500" hit a Gemini timeout -> fell back to
+    # a literal "dưới 500" text search with category wiped, 0 results.
+    entities = entity_extractor.extract(cleaned_query)
+    has_price = entities["price_min"] is not None or entities["price_max"] is not None
+    leftover = [w for w in entity_extractor.clean_query_keywords(cleaned_query).split() if not w.isdigit()]
+    query_q = None if (has_price and not leftover) else cleaned_query
+    return ShoppingContext(
+        intent="SEARCH",
+        query_q=query_q,
+        price_min=entities["price_min"],
+        price_max=entities["price_max"],
+    )
 
 def log_usage(action_name: str, input_tokens: int, output_tokens: int):
-    try:
-        current = request_tokens.get()
-        request_tokens.set(current + input_tokens + output_tokens)
-    except Exception:
-        pass
+    request_tokens.set(request_tokens.get() + input_tokens + output_tokens)
     print(f"\n[{llm_provider.name} API Usage - {action_name}]")
     print(f"  - Input Tokens : {input_tokens}")
     print(f"  - Output Tokens: {output_tokens}")
@@ -54,7 +83,6 @@ def log_usage(action_name: str, input_tokens: int, output_tokens: int):
         print(f"  - Est. Cost    : ${total_cost:.8f} USD (~{total_cost * 25400:.4f} VND)\n")
     else:
         print("  - Est. Cost    : n/a (no pricing table for this provider)\n")
-
 
 
 _nomic_tokenizer = None

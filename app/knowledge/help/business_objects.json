@@ -1,0 +1,723 @@
+{
+  "_domain_role": "Business Object Registry — closed vocabulary for AI Customer Care v2's Step 1 (LLM #1) output. Step 1 may ONLY select business_objects_needed ids that exist in this file (validated by code, never trusted as free text from the model) — same discipline tool.json/Knowledge Object ids already enforced in v1's rule engine, now generalized across domain boundaries per the agreed 'Case -> Business Object -> Document' design (domain JSON files are knowledge sources only, no longer 1:1 pipeline routers).",
+  "_json_sources_note": "Each business_objects[].json_sources entry is {domain_attr, ko_id} — domain_attr matches app/knowledge/help/loader.py's _DOMAIN_FILES keys, ko_id is a real Knowledge Object 'id' already verified to exist in that file. app/help/fact_manifest.py resolves each into: the KO's own business_rules[] (always usable) + its response_templates.success_response content ONLY if that template is TODO/MISSING_FROM_DOCUMENT-free (checked via templates.is_template_ready) — never surfaces placeholder text as a fact.",
+  "_tool_availability_note": "tool_ids listed here are aspirational per docs/chatbot-cskh-knowledge-base-design.md — whether a tool_id has a real registered callable is checked at runtime via app/help/tools.py's is_tool_available(). An unavailable tool_id degrades to a warning + escalation path exactly like v1's flow_executor, never a hard crash.",
+  "cases": ["GENERAL", "ORDER", "PROMOTION", "ACCOUNT", "APP_ISSUE"],
+  "business_objects": [
+    {
+      "id": "BO_GENERAL_GREETING",
+      "case": "GENERAL",
+      "description": "Chào hỏi khách (chào/hello/hi).",
+      "fast_path": true,
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [{"domain_attr": "contact", "ko_id": "HELP_GREETING"}]
+    },
+    {
+      "id": "BO_GENERAL_THANKS",
+      "case": "GENERAL",
+      "description": "Khách cảm ơn chatbot.",
+      "fast_path": true,
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": []
+    },
+    {
+      "id": "BO_GENERAL_GOODBYE",
+      "case": "GENERAL",
+      "description": "Khách tạm biệt/kết thúc hội thoại.",
+      "fast_path": true,
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": []
+    },
+    {
+      "id": "BO_GENERAL_COMPANY_INTRO",
+      "case": "GENERAL",
+      "description": "Delippy là gì, mô hình hoạt động (marketplace + livestream).",
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [
+        {"domain_attr": "company", "ko_id": "COMPANY_INTRO"},
+        {"domain_attr": "company", "ko_id": "COMPANY_BUSINESS_MODEL"}
+      ]
+    },
+    {
+      "id": "BO_GENERAL_COMPANY_LEGAL",
+      "case": "GENERAL",
+      "description": "Câu hỏi pháp lý cơ bản về công ty (mã số thuế/giấy phép/trụ sở). Tranh chấp hợp đồng/yêu cầu văn bản chính thức escalate ngay, không tự trả lời.",
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [{"domain_attr": "company", "ko_id": "COMPANY_LEGAL"}]
+    },
+    {
+      "id": "BO_GENERAL_POLICY_RETURN",
+      "case": "GENERAL",
+      "description": "Chính sách đổi trả chung của Delippy.",
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [{"domain_attr": "policy", "ko_id": "POLICY_RETURN_INQUIRY"}]
+    },
+    {
+      "id": "BO_GENERAL_POLICY_SHIPPING",
+      "case": "GENERAL",
+      "description": "Chính sách vận chuyển / điều kiện huỷ đơn chung của Delippy.",
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [{"domain_attr": "policy", "ko_id": "POLICY_SHIPPING_INQUIRY"}]
+    },
+    {
+      "id": "BO_GENERAL_POLICY_SECURITY",
+      "case": "GENERAL",
+      "description": "Chính sách bảo mật dữ liệu chung của Delippy.",
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [{"domain_attr": "policy", "ko_id": "POLICY_SECURITY_INQUIRY"}]
+    },
+    {
+      "id": "BO_GENERAL_POLICY_TERMS",
+      "case": "GENERAL",
+      "description": "Điều khoản sử dụng chung của Delippy.",
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [{"domain_attr": "policy", "ko_id": "POLICY_TERMS_INQUIRY"}]
+    },
+    {
+      "id": "BO_GENERAL_VERIFY_OFFICIAL_CHANNEL",
+      "case": "GENERAL",
+      "description": "Xác minh kênh chính thức của Delippy khi khách nghi ngờ lừa đảo mạo danh.",
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [
+        {"domain_attr": "company", "ko_id": "COMPANY_VERIFY_OFFICIAL_CHANNEL"},
+        {"domain_attr": "contact", "ko_id": "CONTACT_CHANNELS_INQUIRY"}
+      ]
+    },
+    {
+      "id": "BO_GENERAL_CONTACT_CHANNELS",
+      "case": "GENERAL",
+      "description": "Hỏi kênh liên hệ CSKH / giờ làm việc tổng đài.",
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [
+        {"domain_attr": "contact", "ko_id": "CONTACT_CHANNELS_INQUIRY"},
+        {"domain_attr": "contact", "ko_id": "CONTACT_WORKING_HOURS_INQUIRY"}
+      ]
+    },
+    {
+      "id": "BO_GENERAL_HUMAN_HANDOFF",
+      "case": "GENERAL",
+      "description": "Khách chủ động muốn gặp người thật, không qua một escalation nghiệp vụ cụ thể nào.",
+      "priority": "normal",
+      "required_auth": false,
+      "escalate_always": true,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [{"domain_attr": "contact", "ko_id": "CONTACT_WANT_HUMAN"}]
+    },
+    {
+      "id": "BO_GENERAL_FAQ",
+      "case": "GENERAL",
+      "description": "Câu hỏi thường gặp không thuộc rõ domain nghiệp vụ nào (phí app, đổi ngôn ngữ, app treo...).",
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [{"domain_attr": "faq", "ko_id": "FAQ_GENERAL"}]
+    },
+    {
+      "id": "BO_ORDER_STATUS",
+      "case": "ORDER",
+      "description": "Tra cứu đơn hàng / kiểm tra trạng thái hiện tại của một đơn (theo mã đơn hoặc mô tả nếu không nhớ mã).",
+      "priority": "normal",
+      "required_auth": true,
+      "tool_ids": ["TOOL_ORDER_DETAIL", "TOOL_ORDER_LIST"],
+      "required_entities": [],
+      "json_sources": [
+        {"domain_attr": "order", "ko_id": "ORDER_LOOKUP"},
+        {"domain_attr": "order", "ko_id": "ORDER_STATUS_CHECK"},
+        {"domain_attr": "app_flow", "ko_id": "ORD-02"}
+      ]
+    },
+    {
+      "id": "BO_ORDER_HISTORY",
+      "case": "ORDER",
+      "description": "Xem lịch sử các đơn đã đặt trước đây.",
+      "priority": "normal",
+      "required_auth": true,
+      "tool_ids": ["TOOL_ORDER_LIST"],
+      "required_entities": [],
+      "json_sources": [
+        {"domain_attr": "order", "ko_id": "ORDER_HISTORY"},
+        {"domain_attr": "app_flow", "ko_id": "ORD-01"}
+      ]
+    },
+    {
+      "id": "BO_ORDER_NOT_FOUND",
+      "case": "ORDER",
+      "description": "Khách khẳng định có đặt hàng nhưng không tìm thấy đơn trong danh sách.",
+      "priority": "normal",
+      "required_auth": true,
+      "tool_ids": ["TOOL_ORDER_LIST"],
+      "required_entities": [],
+      "json_sources": [{"domain_attr": "order", "ko_id": "ORDER_NOT_FOUND_INTENT"}]
+    },
+    {
+      "id": "BO_ORDER_CANCEL",
+      "case": "ORDER",
+      "description": "Huỷ một đơn hàng đang ở trạng thái cho phép huỷ (pending/processing).",
+      "action_label": "Huỷ đơn hàng",
+      "priority": "normal",
+      "required_auth": true,
+      "mutating": true,
+      "tool_ids": ["TOOL_ORDER_DETAIL", "TOOL_ORDER_CANCEL"],
+      "required_entities": ["ma_don_hang"],
+      "json_sources": [
+        {"domain_attr": "order", "ko_id": "ORDER_CANCEL"},
+        {"domain_attr": "policy", "ko_id": "POLICY_SHIPPING_INQUIRY"},
+        {"domain_attr": "app_flow", "ko_id": "ORD-03"}
+      ]
+    },
+    {
+      "id": "BO_ORDER_SHIPPING_TRACKING",
+      "case": "ORDER",
+      "description": "Đơn hàng/giao hàng của khách đang chậm, lâu, hoặc muốn biết tình hình hiện tại (dù đơn còn đang chờ seller xác nhận HAY đã bàn giao cho đơn vị vận chuyển) - thực tế đơn đang ở giai đoạn nào chỉ xác định được SAU KHI tra dữ liệu thật, không đoán trước từ câu hỏi.",
+      "priority": "normal",
+      "required_auth": true,
+      "tool_ids": ["TOOL_ORDER_DETAIL", "TOOL_SHIPPING_TRACKING_DETAIL"],
+      "required_entities": ["ma_don_hang"],
+      "json_sources": [
+        {"domain_attr": "shipping", "ko_id": "SHIPPING_TRACKING_LOOKUP"},
+        {"domain_attr": "shipping", "ko_id": "SHIPPING_WHERE_IS_MY_PACKAGE"},
+        {"domain_attr": "shipping", "ko_id": "SHIPPING_ETA_INQUIRY"},
+        {"domain_attr": "order", "ko_id": "ORDER_NOT_CONFIRMED_TOO_LONG"},
+        {"domain_attr": "app_flow", "ko_id": "ORD-04"}
+      ]
+    },
+    {
+      "id": "BO_ORDER_DELIVERY_FAILED",
+      "case": "ORDER",
+      "description": "Giao hàng thất bại — lý do, số lần thử, lựa chọn tiếp theo (giao lại/đổi địa chỉ/huỷ).",
+      "priority": "high",
+      "required_auth": true,
+      "tool_ids": ["TOOL_ORDER_DETAIL"],
+      "required_entities": ["ma_don_hang"],
+      "json_sources": [{"domain_attr": "shipping", "ko_id": "SHIPPING_DELIVERY_FAILED"}]
+    },
+    {
+      "id": "BO_ORDER_CHANGE_ADDRESS",
+      "case": "ORDER",
+      "description": "Đổi địa chỉ/SĐT nhận hàng khi đơn đang giao.",
+      "priority": "high",
+      "required_auth": true,
+      "tool_ids": [],
+      "required_entities": ["ma_don_hang", "dia_chi_giao_moi"],
+      "json_sources": [{"domain_attr": "shipping", "ko_id": "SHIPPING_CHANGE_ADDRESS"}]
+    },
+    {
+      "id": "BO_ORDER_NOT_RECEIVED_BUT_DELIVERED",
+      "case": "ORDER",
+      "description": "Khách khẳng định chưa nhận được hàng dù hệ thống ghi 'đã giao' — nghi ngờ giao sai người/mất hàng.",
+      "priority": "critical",
+      "required_auth": true,
+      "escalate_always": true,
+      "tool_ids": ["TOOL_ORDER_DETAIL"],
+      "required_entities": ["ma_don_hang"],
+      "json_sources": [{"domain_attr": "shipping", "ko_id": "SHIPPING_NOT_RECEIVED_BUT_MARKED_DELIVERED"}]
+    },
+    {
+      "id": "BO_ORDER_PAYMENT_STATUS",
+      "case": "ORDER",
+      "description": "Kiểm tra trạng thái giao dịch thanh toán của một đơn.",
+      "priority": "normal",
+      "required_auth": true,
+      "tool_ids": ["TOOL_ORDER_PAYMENT_STATUS"],
+      "required_entities": ["ma_don_hang"],
+      "json_sources": [{"domain_attr": "payment", "ko_id": "PAYMENT_STATUS_CHECK"}]
+    },
+    {
+      "id": "BO_ORDER_PAYMENT_METHODS",
+      "case": "ORDER",
+      "description": "Danh mục phương thức thanh toán khả dụng.",
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": ["TOOL_PAYMENT_METHODS_LIST"],
+      "required_entities": [],
+      "json_sources": [{"domain_attr": "payment", "ko_id": "PAYMENT_METHODS_INQUIRY"}]
+    },
+    {
+      "id": "BO_ORDER_PAYMENT_NOT_UPDATED",
+      "case": "ORDER",
+      "description": "Khách đã chuyển khoản nhưng đơn chưa cập nhật trạng thái tương ứng.",
+      "priority": "high",
+      "required_auth": true,
+      "tool_ids": ["TOOL_ORDER_PAYMENT_STATUS"],
+      "required_entities": ["ma_don_hang"],
+      "json_sources": [{"domain_attr": "payment", "ko_id": "PAYMENT_PAID_BUT_ORDER_NOT_UPDATED"}]
+    },
+    {
+      "id": "BO_ORDER_PAYMENT_FAILED",
+      "case": "ORDER",
+      "description": "Thanh toán thất bại — hết hạn phiên vs lỗi kỹ thuật không rõ nguyên nhân.",
+      "priority": "normal",
+      "required_auth": true,
+      "tool_ids": ["TOOL_ORDER_PAYMENT_STATUS"],
+      "required_entities": ["ma_don_hang"],
+      "json_sources": [{"domain_attr": "payment", "ko_id": "PAYMENT_FAILED"}]
+    },
+    {
+      "id": "BO_ORDER_PAYMENT_VAT_INVOICE",
+      "case": "ORDER",
+      "description": "Tra cứu/xuất hoá đơn VAT cho đơn hàng.",
+      "priority": "normal",
+      "required_auth": true,
+      "tool_ids": [],
+      "required_entities": ["ma_don_hang"],
+      "json_sources": [{"domain_attr": "payment", "ko_id": "PAYMENT_VAT_INVOICE"}]
+    },
+    {
+      "id": "BO_ORDER_PAYMENT_DOUBLE_CHARGE",
+      "case": "ORDER",
+      "description": "Khách báo bị trừ tiền hai lần cho cùng một giao dịch/đơn — luôn escalate, chatbot không tự kết luận đúng/sai.",
+      "priority": "critical",
+      "required_auth": true,
+      "escalate_always": true,
+      "tool_ids": [],
+      "required_entities": ["ma_don_hang"],
+      "json_sources": [{"domain_attr": "payment", "ko_id": "PAYMENT_DOUBLE_CHARGE"}]
+    },
+    {
+      "id": "BO_ORDER_RETURN_REQUEST",
+      "case": "ORDER",
+      "description": "Tạo yêu cầu đổi trả (sai sản phẩm/thiếu số lượng, lỗi/hư hỏng, không đúng mô tả, đổi ý...). Hiện chưa có API duyệt tự động — luôn tạo ticket CSKH xử lý thủ công.",
+      "priority": "high",
+      "required_auth": true,
+      "escalate_always": true,
+      "tool_ids": [],
+      "required_entities": ["ma_don_hang", "san_pham_can_doi_tra", "ly_do_doi_tra"],
+      "json_sources": [
+        {"domain_attr": "order", "ko_id": "ORDER_WRONG_ITEM_OR_QUANTITY"},
+        {"domain_attr": "return_refund", "ko_id": "RETURN_REQUEST_CREATE"},
+        {"domain_attr": "return_refund", "ko_id": "RETURN_PRODUCT_DEFECTIVE"},
+        {"domain_attr": "return_refund", "ko_id": "RETURN_WRONG_PRODUCT"},
+        {"domain_attr": "return_refund", "ko_id": "RETURN_NOT_AS_DESCRIBED"},
+        {"domain_attr": "policy", "ko_id": "POLICY_RETURN_INQUIRY"},
+        {"domain_attr": "app_flow", "ko_id": "ORD-06"}
+      ]
+    },
+    {
+      "id": "BO_ORDER_REFUND_NO_RETURN",
+      "case": "ORDER",
+      "description": "Yêu cầu hoàn tiền không kèm trả hàng vật lý (đơn lỗi thanh toán, huỷ đơn đã thanh toán trước).",
+      "priority": "high",
+      "required_auth": true,
+      "escalate_always": true,
+      "tool_ids": [],
+      "required_entities": ["ma_don_hang"],
+      "json_sources": [{"domain_attr": "return_refund", "ko_id": "REFUND_REQUEST_NO_PHYSICAL_RETURN"}]
+    },
+    {
+      "id": "BO_ORDER_RETURN_STATUS",
+      "case": "ORDER",
+      "description": "Tra cứu trạng thái một yêu cầu đổi trả/hoàn tiền đã tạo.",
+      "priority": "normal",
+      "required_auth": true,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [{"domain_attr": "return_refund", "ko_id": "RETURN_STATUS_CHECK"}]
+    },
+    {
+      "id": "BO_ORDER_RETURN_CANCEL",
+      "case": "ORDER",
+      "description": "Huỷ một yêu cầu đổi trả đã tạo (khách đổi ý).",
+      "priority": "normal",
+      "required_auth": true,
+      "tool_ids": [],
+      "required_entities": ["ma_yeu_cau_doi_tra"],
+      "json_sources": [{"domain_attr": "return_refund", "ko_id": "RETURN_REQUEST_CANCEL"}]
+    },
+    {
+      "id": "BO_ORDER_WARRANTY_INFO",
+      "case": "ORDER",
+      "description": "Bảo hành ở Delippy hoạt động ra sao, nộp yêu cầu bảo hành ở đâu — câu hỏi chung, không gắn với một đơn/sản phẩm cụ thể của khách.",
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [
+        {"domain_attr": "warranty", "ko_id": "WARRANTY_CHANNEL_INQUIRY"},
+        {"domain_attr": "warranty", "ko_id": "WARRANTY_CLAIM_REQUEST"}
+      ]
+    },
+    {
+      "id": "BO_ORDER_WARRANTY",
+      "case": "ORDER",
+      "description": "Kiểm tra thời hạn bảo hành còn lại của một sản phẩm/đơn cụ thể của khách. Bảo hành do từng seller khai báo, không phải chính sách thống nhất toàn sàn.",
+      "priority": "normal",
+      "required_auth": true,
+      "tool_ids": [],
+      "required_entities": ["ma_don_hang", "san_pham"],
+      "json_sources": [
+        {"domain_attr": "warranty", "ko_id": "WARRANTY_PERIOD_INQUIRY"},
+        {"domain_attr": "warranty", "ko_id": "WARRANTY_EXPIRED_NOTICE"}
+      ]
+    },
+    {
+      "id": "BO_ORDER_SELLER_DISPUTE",
+      "case": "ORDER",
+      "description": "Khiếu nại/tranh chấp riêng với seller (hàng giả, cam kết seller không giữ lời) không tự xử lý được — lấy thông tin seller từ đơn rồi hướng dẫn liên hệ/escalate.",
+      "priority": "high",
+      "required_auth": true,
+      "escalate_always": true,
+      "tool_ids": ["TOOL_ORDER_DETAIL"],
+      "required_entities": ["ma_don_hang"],
+      "json_sources": [
+        {"domain_attr": "order", "ko_id": "ORDER_WRONG_ITEM_OR_QUANTITY"},
+        {"domain_attr": "app_flow", "ko_id": "ORD-05"}
+      ]
+    },
+    {
+      "id": "BO_PROMOTION_VOUCHER_CONDITIONS",
+      "case": "PROMOTION",
+      "description": "Giải thích điều kiện áp dụng của một mã voucher.",
+      "priority": "normal",
+      "required_auth": true,
+      "tool_ids": [],
+      "required_entities": ["ma_voucher"],
+      "json_sources": [{"domain_attr": "promotion", "ko_id": "VOUCHER_CONDITIONS_INQUIRY"}]
+    },
+    {
+      "id": "BO_PROMOTION_VOUCHER_NOT_APPLICABLE",
+      "case": "PROMOTION",
+      "description": "Giải thích lý do voucher không áp dụng được, hoặc đã hết hạn.",
+      "priority": "normal",
+      "required_auth": true,
+      "tool_ids": [],
+      "required_entities": ["ma_voucher"],
+      "json_sources": [
+        {"domain_attr": "promotion", "ko_id": "VOUCHER_NOT_APPLICABLE"},
+        {"domain_attr": "promotion", "ko_id": "VOUCHER_EXPIRED"}
+      ]
+    },
+    {
+      "id": "BO_PROMOTION_HOW_TO_GET_VOUCHER",
+      "case": "PROMOTION",
+      "description": "Gợi ý cách nhận voucher mới / có chương trình khuyến mãi nào đang chạy.",
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [{"domain_attr": "promotion", "ko_id": "VOUCHER_HOW_TO_GET"}]
+    },
+    {
+      "id": "BO_ACCOUNT_PROFILE",
+      "case": "ACCOUNT",
+      "description": "Cập nhật thông tin cá nhân (tên/avatar/ngày sinh), sổ địa chỉ giao hàng.",
+      "priority": "normal",
+      "required_auth": true,
+      "tool_ids": ["TOOL_PROFILE_GET"],
+      "required_entities": [],
+      "json_sources": [
+        {"domain_attr": "profile", "ko_id": "PROFILE_UPDATE_INFO"},
+        {"domain_attr": "profile", "ko_id": "PROFILE_ADDRESS_BOOK"},
+        {"domain_attr": "profile", "ko_id": "PROFILE_DEFAULT_ADDRESS_CHANGE"},
+        {"domain_attr": "app_flow", "ko_id": "ACC-06"},
+        {"domain_attr": "app_flow", "ko_id": "ACC-07"}
+      ]
+    },
+    {
+      "id": "BO_ACCOUNT_PROFILE_SAVE_ERROR",
+      "case": "ACCOUNT",
+      "description": "Sửa hồ sơ nhưng không lưu được — hướng dẫn khắc phục các lỗi thường gặp (định dạng dữ liệu, kết nối mạng, dung lượng ảnh).",
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [{"domain_attr": "profile", "ko_id": "PROFILE_SAVE_FAILED"}]
+    },
+    {
+      "id": "BO_ACCOUNT_FORGOT_PASSWORD",
+      "case": "ACCOUNT",
+      "description": "Quên mật khẩu, cần gửi lại OTP/link đặt lại mật khẩu.",
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": ["so_dien_thoai_hoac_email"],
+      "json_sources": [
+        {"domain_attr": "account", "ko_id": "ACCOUNT_FORGOT_PASSWORD"},
+        {"domain_attr": "app_flow", "ko_id": "ACC-03"}
+      ]
+    },
+    {
+      "id": "BO_ACCOUNT_OTP_NOT_RECEIVED",
+      "case": "ACCOUNT",
+      "description": "Không nhận được mã OTP dù hệ thống báo đã gửi.",
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": ["kenh_dang_nhap"],
+      "json_sources": [{"domain_attr": "account", "ko_id": "ACCOUNT_OTP_NOT_RECEIVED"}]
+    },
+    {
+      "id": "BO_ACCOUNT_LOCKED",
+      "case": "ACCOUNT",
+      "description": "Tài khoản bị khoá/đình chỉ — giải thích trạng thái, hướng dẫn khiếu nại. Chatbot không tự mở khoá.",
+      "priority": "high",
+      "required_auth": false,
+      "escalate_always": true,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [{"domain_attr": "account", "ko_id": "ACCOUNT_LOCKED"}]
+    },
+    {
+      "id": "BO_ACCOUNT_STATUS_CHECK",
+      "case": "ACCOUNT",
+      "description": "Tra cứu trạng thái hiện tại của tài khoản.",
+      "priority": "normal",
+      "required_auth": true,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [{"domain_attr": "account", "ko_id": "ACCOUNT_STATUS_CHECK"}]
+    },
+    {
+      "id": "BO_ACCOUNT_DELETE_REQUEST",
+      "case": "ACCOUNT",
+      "description": "Yêu cầu xoá tài khoản — phải giải thích hệ quả trước, không xoá ngay qua chatbot.",
+      "priority": "high",
+      "required_auth": true,
+      "mutating": true,
+      "escalate_always": true,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [
+        {"domain_attr": "account", "ko_id": "ACCOUNT_DELETE_REQUEST"},
+        {"domain_attr": "app_flow", "ko_id": "ACC-08"}
+      ]
+    },
+    {
+      "id": "BO_ACCOUNT_SOCIAL_LINK",
+      "case": "ACCOUNT",
+      "description": "Đăng nhập/liên kết mạng xã hội (Google/Facebook) trong app.",
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [
+        {"domain_attr": "account", "ko_id": "ACCOUNT_SOCIAL_LINK"},
+        {"domain_attr": "app_flow", "ko_id": "ACC-09"}
+      ]
+    },
+    {
+      "id": "BO_ACCOUNT_CHANGE_PASSWORD",
+      "case": "ACCOUNT",
+      "description": "Hướng dẫn quy trình đổi mật khẩu — chỉ dẫn các bước thực hiện trong app, không tự đổi hộ nên không cần xác thực trước khi giải thích quy trình.",
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [
+        {"domain_attr": "security", "ko_id": "SECURITY_CHANGE_PASSWORD"},
+        {"domain_attr": "app_flow", "ko_id": "ACC-04"}
+      ]
+    },
+    {
+      "id": "BO_ACCOUNT_TAKEOVER_SUSPECTED",
+      "case": "ACCOUNT",
+      "description": "Nghi ngờ tài khoản bị chiếm quyền / phát hiện đăng nhập lạ — ưu tiên khẩn cấp nhất toàn hệ thống, escalate ngay lập tức. Không yêu cầu token đang đăng nhập vì phiên đó có thể chính là của kẻ chiếm quyền — xác thực lại qua kênh phụ khi CSKH xử lý ticket.",
+      "priority": "critical",
+      "required_auth": false,
+      "escalate_always": true,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [
+        {"domain_attr": "security", "ko_id": "SECURITY_ACCOUNT_TAKEOVER_SUSPECTED"},
+        {"domain_attr": "security", "ko_id": "SECURITY_UNFAMILIAR_LOGIN_DETECTED"}
+      ]
+    },
+    {
+      "id": "BO_ACCOUNT_PHISHING_REPORT",
+      "case": "ACCOUNT",
+      "description": "Báo cáo lừa đảo/phishing mạo danh Delippy.",
+      "priority": "high",
+      "required_auth": false,
+      "escalate_always": true,
+      "tool_ids": [],
+      "required_entities": ["kenh_nghi_ngo_lua_dao"],
+      "json_sources": [
+        {"domain_attr": "security", "ko_id": "SECURITY_PHISHING_REPORT"},
+        {"domain_attr": "company", "ko_id": "COMPANY_VERIFY_OFFICIAL_CHANNEL"}
+      ]
+    },
+    {
+      "id": "BO_ACCOUNT_DATA_PRIVACY",
+      "case": "ACCOUNT",
+      "description": "Câu hỏi chung về bảo mật thông tin cá nhân.",
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [
+        {"domain_attr": "security", "ko_id": "SECURITY_PERSONAL_DATA_INQUIRY"},
+        {"domain_attr": "policy", "ko_id": "POLICY_SECURITY_INQUIRY"}
+      ]
+    },
+    {
+      "id": "BO_APP_CANNOT_LOGIN",
+      "case": "APP_ISSUE",
+      "description": "Không đăng nhập được / app báo lỗi khi đăng nhập — phân luồng tiếp theo nguyên nhân (quên mật khẩu/không nhận OTP/tài khoản khoá).",
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": ["so_dien_thoai_hoac_email"],
+      "json_sources": [
+        {"domain_attr": "account", "ko_id": "ACCOUNT_LOGIN_ERROR"},
+        {"domain_attr": "app_flow", "ko_id": "ACC-02"}
+      ]
+    },
+    {
+      "id": "BO_APP_PAYMENT_ERROR",
+      "case": "APP_ISSUE",
+      "description": "Lỗi thanh toán chung gặp trong app (không nhất thiết gắn với một đơn cụ thể).",
+      "priority": "normal",
+      "required_auth": true,
+      "tool_ids": ["TOOL_ORDER_PAYMENT_STATUS"],
+      "required_entities": ["ma_don_hang"],
+      "json_sources": [{"domain_attr": "payment", "ko_id": "PAYMENT_FAILED"}]
+    },
+    {
+      "id": "BO_APP_CRASH_OR_LOADING",
+      "case": "APP_ISSUE",
+      "description": "App bị treo/crash, hoặc lỗi tải trang/không phản hồi.",
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [{"domain_attr": "faq", "ko_id": "FAQ_GENERAL"}]
+    },
+    {
+      "id": "BO_APP_GENERIC_TECHNICAL",
+      "case": "APP_ISSUE",
+      "description": "Vấn đề kỹ thuật khác không thuộc các nhóm trên.",
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [{"domain_attr": "faq", "ko_id": "FAQ_GENERAL"}]
+    },
+    {
+      "id": "BO_ACCOUNT_REGISTER",
+      "case": "ACCOUNT",
+      "description": "Hướng dẫn đăng ký tài khoản mới.",
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [
+        {"domain_attr": "account", "ko_id": "ACCOUNT_REGISTER"},
+        {"domain_attr": "app_flow", "ko_id": "ACC-01"}
+      ]
+    },
+    {
+      "id": "BO_ACCOUNT_LOGOUT",
+      "case": "ACCOUNT",
+      "description": "Hướng dẫn đăng xuất khỏi tài khoản.",
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [{"domain_attr": "app_flow", "ko_id": "ACC-05"}]
+    },
+    {
+      "id": "BO_GENERAL_SELLER_REGISTRATION",
+      "case": "GENERAL",
+      "description": "Muốn đăng ký bán hàng/mở gian hàng trên Delippy.",
+      "priority": "normal",
+      "required_auth": true,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [{"domain_attr": "app_flow", "ko_id": "ACC-10"}]
+    },
+    {
+      "id": "BO_GENERAL_CHATBOT_HELP",
+      "case": "GENERAL",
+      "description": "Câu hỏi meta về chính chatbot (cách dùng, sao không thấy nút hỗ trợ, chuyển đổi giữa Tư vấn mua sắm và Chăm sóc khách hàng).",
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [{"domain_attr": "app_flow", "ko_id": "BOT-01"}]
+    },
+    {
+      "id": "BO_ORDER_HOW_TO_ORDER",
+      "case": "ORDER",
+      "description": "Hướng dẫn cách đặt hàng/mua sản phẩm trong app (từ xem sản phẩm tới đặt hàng thành công).",
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [{"domain_attr": "app_flow", "ko_id": "SHOP-01"}]
+    },
+    {
+      "id": "BO_ORDER_HOW_TO_PAY_QR",
+      "case": "ORDER",
+      "description": "Hướng dẫn thanh toán chuyển khoản qua quét mã QR (SePay), hoặc đã chuyển khoản nhưng app chưa cập nhật.",
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [{"domain_attr": "app_flow", "ko_id": "SHOP-02"}]
+    },
+    {
+      "id": "BO_ORDER_REVIEW_PRODUCT",
+      "case": "ORDER",
+      "description": "Hướng dẫn đánh giá sản phẩm sau khi đã nhận hàng.",
+      "priority": "normal",
+      "required_auth": true,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [{"domain_attr": "app_flow", "ko_id": "ORD-07"}]
+    },
+    {
+      "id": "BO_PROMOTION_HOW_TO_APPLY_VOUCHER",
+      "case": "PROMOTION",
+      "description": "Hướng dẫn cách áp dụng mã giảm giá/voucher trong app (voucher sàn và voucher shop).",
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [{"domain_attr": "app_flow", "ko_id": "SHOP-03"}]
+    },
+    {
+      "id": "BO_PROMOTION_DP_POINTS_USAGE",
+      "case": "PROMOTION",
+      "description": "Hướng dẫn cách dùng điểm thưởng DP khi thanh toán, và quy tắc điểm DP khi đơn bị huỷ.",
+      "priority": "normal",
+      "required_auth": false,
+      "tool_ids": [],
+      "required_entities": [],
+      "json_sources": [{"domain_attr": "app_flow", "ko_id": "SHOP-04"}]
+    }
+  ]
+}

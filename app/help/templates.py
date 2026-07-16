@@ -41,7 +41,7 @@ def render_template(template_id: str, context: Dict[str, Any]) -> Optional[str]:
 
 def render_or_fallback(template_id: str, context: Dict[str, Any]) -> str:
     """render_template() with the generic-fallback safety net always
-    applied - this is the function flow_executor.py actually calls."""
+    applied - this is the function business_object_executor.py/orchestrator.py actually calls."""
     rendered = render_template(template_id, context)
     if rendered is not None:
         return rendered

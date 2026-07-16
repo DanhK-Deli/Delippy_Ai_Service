@@ -28,7 +28,7 @@ async def _call_payment_methods_list(token: Optional[str], entities: Dict[str, A
 async def _call_shipping_tracking_detail(token: Optional[str], entities: Dict[str, Any]) -> Any:
     """No dedicated tracking endpoint exists - OrderDetail.tracks
     (app/models/ecommerce/order.py) IS the tracking history, so this reuses
-    the same call as TOOL_ORDER_DETAIL. flow_executor.py reads the `tracks`
+    the same call as TOOL_ORDER_DETAIL. business_object_executor.py reads the `tracks`
     field off the result."""
     return await delippy_client.get_order_detail(entities.get("ma_don_hang"), token=token)
 
@@ -40,7 +40,7 @@ async def _call_profile_get(token: Optional[str], entities: Dict[str, Any]) -> A
 # Only the tool_ids with a real, already-working DelippyClient method are
 # registered here - see the approved plan's scope table. Every other
 # tool_id in tool.json (status NEEDS_CONFIRMATION/MISSING_NEEDS_BUILD) has no
-# entry, which is deliberate: flow_executor.py's "not registered" branch and
+# entry, which is deliberate: business_object_executor.py's "not registered" branch and
 # the escalation taxonomy handle that case for free, no per-domain code
 # needed as backend coverage grows - just add a row here.
 TOOL_REGISTRY: Dict[str, ToolCallable] = {
@@ -63,7 +63,7 @@ def is_tool_available(tool_id: str) -> bool:
 
 
 async def call_tool(tool_id: str, *, token: Optional[str], entities: Dict[str, Any]) -> Any:
-    """Raises whatever delippy_client/httpx raises - flow_executor.py routes
+    """Raises whatever delippy_client/httpx raises - business_object_executor.py routes
     that through app/help/errors.py. Callers should check
     is_tool_available()/get_tool_callable() first; this raises ValueError as
     a defensive guard only, not the primary "unavailable" signal (that's

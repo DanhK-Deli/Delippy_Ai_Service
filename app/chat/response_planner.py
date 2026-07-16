@@ -17,7 +17,10 @@ class ResponsePlanner:
     post-retrieval planner to plan for them.
     """
 
-    def plan(self, query: str, evidence: Evidence, context: ShoppingContext, already_nudged: bool = False) -> ResponsePlan:
+    def plan(
+        self, query: str, evidence: Evidence, context: ShoppingContext,
+        already_nudged: bool = False, already_category_confirmed: bool = False,
+    ) -> ResponsePlan:
         intent = context.intent
         next_action, target, reason = self._next_action_and_target(intent, evidence)
 
@@ -45,6 +48,21 @@ class ResponsePlanner:
             return ResponsePlan(type="FAQ", next_action=next_action, target=target, reason=reason)
 
         if intent == "SEARCH":
+            # entity_extractor found no CONFIDENT category, only a weak
+            # single-word guess it declined to trust on its own (see
+            # ontology.find_category_weak()'s docstring / parser.py's
+            # _category_confirm_candidate) - ask instead of silently
+            # searching category-less. `already_category_confirmed` stops
+            # this from looping forever if the same weak guess keeps coming
+            # back turn after turn (mirrors already_nudged below).
+            if context._category_confirm_candidate and not already_category_confirmed:
+                return ResponsePlan(
+                    type="CLARIFICATION",
+                    next_action="CONFIRM_CATEGORY",
+                    target={"candidate": context._category_confirm_candidate},
+                    reason="category_confirm",
+                )
+
             consultative = self._is_consultative(query, context)
 
             if not consultative and evidence.products:

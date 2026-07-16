@@ -54,6 +54,17 @@ class HelpKnowledge:
         "dictionary": "dictionary.json",
         "response_template": "response_template.json",
         "business_flow": "business_flow.json",
+        "business_object": "business_objects.json",
+        # app_flows.json is reference-only content (real UI navigation steps,
+        # see docs/chatbot-cskh-knowledge-base-design.md's flow catalogue) -
+        # shaped like a domain file (knowledge_objects: [...]) so
+        # get_knowledge_object_by_id() works unchanged, but deliberately NOT
+        # in _DOMAIN_FILES: these records have no escalation_rules/intent/
+        # business_flow.json membership of their own, and forcing them
+        # through find_broken_references()'s domain-KO checks would produce
+        # nothing but false positives.
+        "app_flow": "app_flows.json",
+        "carrier_transit_time": "carrier_transit_times.json",
     }
     _MANIFEST_ATTR = "manifest"
     _MANIFEST_FILE = "manifest.json"
@@ -73,7 +84,7 @@ class HelpKnowledge:
     @classmethod
     def domain_attrs(cls) -> Tuple[str, ...]:
         """Public accessor for the 13 business-domain attribute names (e.g.
-        "order", "payment") - used by app/help/rule_engine.py so it doesn't
+        "order", "payment") - used by app/help/fact_manifest.py so it doesn't
         have to reach into the private _DOMAIN_FILES map directly."""
         return tuple(cls._DOMAIN_FILES.keys())
 
@@ -230,6 +241,26 @@ class HelpKnowledge:
         for flow_id in flow_ids:
             if flow_id not in all_ko_ids:
                 issues.append(f"business_flow.json: orphan flow entry {flow_id!r} (no matching knowledge object)")
+
+        # Business Object Registry (AI Customer Care v2) - Step 1's closed
+        # vocabulary. Every tool_id/json_source must resolve to something
+        # real, same "no free-text routing" discipline as the checks above.
+        # json_sources may also point at "app_flow" (app_flows.json) -
+        # reference-only UI navigation records, not subject to the stricter
+        # domain-KO checks above (no escalation_rules/business_flow of their
+        # own), so it's looked up here rather than folded into kos_by_domain.
+        lookup_domains = {**kos_by_domain, "app_flow": (getattr(self, "app_flow", None) or {}).get("knowledge_objects", [])}
+        for bo in (getattr(self, "business_object", None) or {}).get("business_objects", []):
+            bo_id = bo.get("id", "<no id>")
+            for tool_id in (bo.get("tool_ids") or []):
+                if tool_id not in tool_ids:
+                    issues.append(f"business_objects.json.{bo_id}: tool_ids references unknown tool_id {tool_id!r}")
+            for src in (bo.get("json_sources") or []):
+                domain_attr, ko_id = src.get("domain_attr"), src.get("ko_id")
+                if domain_attr not in lookup_domains:
+                    issues.append(f"business_objects.json.{bo_id}: json_sources references unknown domain_attr {domain_attr!r}")
+                elif ko_id not in {ko.get("id") for ko in lookup_domains[domain_attr]}:
+                    issues.append(f"business_objects.json.{bo_id}: json_sources references unknown ko_id {ko_id!r} in domain {domain_attr!r}")
         return issues
 
     def _validate_or_raise(self):
@@ -299,6 +330,40 @@ class HelpKnowledge:
             if t.get("id") == template_id:
                 return t
         return None
+
+    def get_knowledge_object_by_id(self, domain_attr: str, ko_id: str) -> Optional[Dict[str, Any]]:
+        """Looks up a Knowledge Object by its own 'id' (not by 'intent') -
+        used by business object json_sources resolution (fact_manifest.py)
+        and by conversation_state.py to resolve a stored ko_id back to its
+        record."""
+        data = getattr(self, domain_attr, None) or {}
+        for ko in data.get("knowledge_objects", []):
+            if ko.get("id") == ko_id:
+                return ko
+        return None
+
+    def all_business_objects(self) -> List[Dict[str, Any]]:
+        """Every Business Object in the closed registry (business_objects.json)
+        - what Step 1's prompt lists as the only ids it may choose from."""
+        return (getattr(self, "business_object", None) or {}).get("business_objects", [])
+
+    def get_business_object(self, bo_id: str) -> Optional[Dict[str, Any]]:
+        for bo in self.all_business_objects():
+            if bo.get("id") == bo_id:
+                return bo
+        return None
+
+    def get_carrier_transit_time(self, carrier_key: Optional[str]) -> Optional[Dict[str, Any]]:
+        """Curated (never LLM-guessed) average transit-time text for a real
+        carrier - keyed by the same lowercase string Delippy's own order API
+        returns in shipping[].partner (e.g. "viettelpost"). None if this
+        carrier has no curated entry yet - callers must NOT fall back to
+        letting the model estimate on its own (see carrier_transit_times.json's
+        own docstring)."""
+        if not carrier_key:
+            return None
+        carriers = (getattr(self, "carrier_transit_time", None) or {}).get("carriers", {})
+        return carriers.get(carrier_key.strip().lower())
 
 
 help_knowledge = HelpKnowledge()

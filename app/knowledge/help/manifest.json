@@ -15,7 +15,7 @@
     {"file": "promotion.json", "domain": "09_promotion", "knowledge_object_count": 4},
     {"file": "policy.json", "domain": "10_policy", "knowledge_object_count": 4},
     {"file": "security.json", "domain": "11_security", "knowledge_object_count": 5},
-    {"file": "contact.json", "domain": "12_contact", "knowledge_object_count": 3},
+    {"file": "contact.json", "domain": "12_contact", "knowledge_object_count": 4},
     {"file": "faq.json", "domain": "13_faq", "knowledge_object_count": 1}
   ],
   "infra_files": [

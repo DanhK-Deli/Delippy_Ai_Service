@@ -119,6 +119,28 @@ def is_no_preference_reply(message: str) -> bool:
     text = (message or "").lower()
     return any(marker in text for marker in _NO_PREFERENCE_MARKERS) or bool(_INDIFFERENCE_RE.search(text))
 
+# Same "[interrogative] + cũng được" construction as _INDIFFERENCE_RE, but
+# capturing the interrogative too so the WHOLE clause can be stripped, not
+# just "cũng được" - removing only the suffix left "gì" dangling in front of
+# the real subject (e.g. "sách gì cũng được" -> "sách gì"), which still isn't
+# a clean search term.
+_INDIFFERENCE_PHRASE_RE = re.compile(
+    r"\b(?:gì|nào|sao|ai|bao nhiêu|lúc nào|ở đâu)\s+cũng\s*(?:được|đc|dc|ok|okay)\b"
+)
+
+def strip_no_preference_phrasing(message: str) -> str:
+    """Strips an indifference clause ("sách gì cũng được" -> "sách") from a
+    query. Used by llm_client's deterministic fallback (provider unavailable
+    or errored) - unlike the normal AI/deterministic parser paths, that
+    fallback has no LLM to separate the real subject from this filler, so a
+    query like "sách gì cũng được" was sent to the backend verbatim and
+    matched zero products."""
+    text = message or ""
+    text = _INDIFFERENCE_PHRASE_RE.sub("", text)
+    for marker in _NO_PREFERENCE_MARKERS:
+        text = re.sub(re.escape(marker), "", text, flags=re.IGNORECASE)
+    return re.sub(r"\s+", " ", text).strip()
+
 # A "why does this matter" / "which technology is better" question (Sprint 4's
 # Tech Explain) - "tại sao"/"vì sao" cover an explicit why-ask; the rest cover
 # an implicit "explain this choice" ask ("nên chọn ... hay ...", "... hay ...

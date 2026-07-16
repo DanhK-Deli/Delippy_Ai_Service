@@ -49,7 +49,11 @@ def _timed(timings: Dict[str, float], label: str):
 def _log_pipeline_timings(timings: Dict[str, float], t0: float, summary: str) -> None:
     timings["total"] = (time.perf_counter() - t0) * 1000
     breakdown = " ".join(f"{k}={v:.0f}ms" for k, v in timings.items())
-    print(f"\n[Orchestrator][Timing] {summary}: {breakdown}")
+    # tokens_used printed here too (not just in the JSON response) so the
+    # `uvicorn` terminal alone is enough to watch latency/cost while testing
+    # with curl/Postman - same rationale as app/help/orchestrator.py's
+    # _finalize_metrics().
+    print(f"\n[Orchestrator][Timing] {summary}: {breakdown} | tokens_used={request_tokens.get()}")
 
 def _tokens(text: str) -> List[str]:
     """Whole-word tokens, lowercased, splitting on any non-word char so
@@ -393,8 +397,7 @@ class Orchestrator:
     async def process_message(self, message: str, session_id: Optional[str] = None) -> dict:
         timings: Dict[str, float] = {}
         t0 = time.perf_counter()
-        request_tokens.set(0)
-
+        request_tokens.set(0)  # reset per-request accumulator - see app/client/llm_client.py
 
         # 1. Load Session
         with _timed(timings, "session_load"):
@@ -438,13 +441,13 @@ class Orchestrator:
                     "follow_up_actions": [SEE_MORE_ACTION] if has_more else [],
                     "warnings": [],
                     "source_list": [],
+                    "response_time_ms": (time.perf_counter() - t0) * 1000,
+                    "tokens_used": request_tokens.get(),
                     "data": {
                         "session_id": conversation.session_id,
                         "memory": conversation.memory,
                         "products": next_products
-                    },
-                    "response_time_ms": (time.perf_counter() - t0) * 1000,
-                    "tokens_used": request_tokens.get()
+                    }
                 }
             else:
                 answer = random.choice(ontology.pagination_end_responses) if ontology.pagination_end_responses else \
@@ -463,15 +466,14 @@ class Orchestrator:
                     "follow_up_actions": [],
                     "warnings": [],
                     "source_list": [],
+                    "response_time_ms": (time.perf_counter() - t0) * 1000,
+                    "tokens_used": request_tokens.get(),
                     "data": {
                         "session_id": conversation.session_id,
                         "memory": conversation.memory,
                         "products": []
-                    },
-                    "response_time_ms": (time.perf_counter() - t0) * 1000,
-                    "tokens_used": request_tokens.get()
+                    }
                 }
-
 
         # 3. Query embedding - lazy AND backgrounded. Only two things ever
         # need the actual vector: the parser's semantic-cache lookup (only
@@ -1058,12 +1060,24 @@ class Orchestrator:
         # requirement field has no dedicated ShoppingContext slot, e.g. baby's
         # "age"/gender, can ask the same clarifying question forever).
         already_nudged = bool(context.category) and conversation.memory.get("vague_nudge_shown_category") == context.category
+        # Same idea as already_nudged above, but keyed on the WEAK candidate
+        # (context.category is None in this case - see
+        # response_planner.py's own note) so asking about one weak guess
+        # doesn't suppress asking about a genuinely different one later.
+        _confirm_candidate = context._category_confirm_candidate
+        _confirm_key = f"{_confirm_candidate.get('category')}|{_confirm_candidate.get('subcategory')}" if _confirm_candidate else None
+        already_category_confirmed = bool(_confirm_key) and conversation.memory.get("category_confirm_shown") == _confirm_key
         with _timed(timings, "planner"):
-            plan = response_planner.plan(message, evidence, context, already_nudged=already_nudged)
+            plan = response_planner.plan(
+                message, evidence, context,
+                already_nudged=already_nudged, already_category_confirmed=already_category_confirmed,
+            )
 
         is_vague_nudge_this_turn = plan.type == "CLARIFICATION" and not evidence.error
         if is_vague_nudge_this_turn:
             conversation.memory["vague_nudge_shown_category"] = context.category
+        if plan.reason == "category_confirm" and _confirm_key:
+            conversation.memory["category_confirm_shown"] = _confirm_key
 
         if gap_fill_question:
             pass
@@ -1161,14 +1175,13 @@ class Orchestrator:
             "follow_up_actions": follow_up_actions,
             "warnings": [],
             "source_list": [],
+            "response_time_ms": (time.perf_counter() - t0) * 1000,
+            "tokens_used": request_tokens.get(),
             "data": {
                 "session_id": conversation.session_id,
                 "memory": conversation.memory,
                 "products": response_products
-            },
-            "response_time_ms": (time.perf_counter() - t0) * 1000,
-            "tokens_used": request_tokens.get()
+            }
         }
-
 
 orchestrator = Orchestrator()

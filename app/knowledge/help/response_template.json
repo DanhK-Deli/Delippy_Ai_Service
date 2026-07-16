@@ -415,8 +415,17 @@
       "situation_type": "success",
       "used_by_intents": ["hoi_chinh_sach_doi_tra", "hoi_chinh_sach_van_chuyen", "hoi_chinh_sach_bao_mat", "hoi_dieu_khoan_su_dung"],
       "required_variables": ["{{loai_chinh_sach}}", "{{noi_dung_tom_tat}}", "{{lien_ket_day_du}}"],
-      "content": "MISSING_FROM_DOCUMENT — một template tóm tắt tham số hoá theo loai_chinh_sach, luôn có câu dẫn 'đây là tóm tắt, nội dung đầy đủ tại {{lien_ket_day_du}}'.",
+      "content": "Dưới đây là thông tin tóm tắt về chính sách {{loai_chinh_sach}} của Delippy:\n\n{{noi_dung_tom_tat}}\n\nBạn có thể tham khảo nội dung đầy đủ tại: {{lien_ket_day_du}}",
       "notes": "Một template dùng chung cho mọi loại chính sách, không phải 4 template riêng, theo đúng mô tả mục 10 của 10_policy."
+    },
+    {
+      "id": "RT_HELP_GREETING",
+      "domain": "12_contact",
+      "situation_type": "success",
+      "used_by_intents": ["chao_hoi"],
+      "required_variables": [],
+      "content": "Xin chào! Mình là chatbot hỗ trợ khách hàng của Delippy. Mình có thể giúp bạn giải đáp các thông tin về tài khoản, đơn hàng, vận chuyển, chính sách thanh toán và đổi trả. Bạn cần mình hỗ trợ thông tin gì ạ?",
+      "notes": "Template chào hỏi cơ bản cho CSKH /help."
     },
     {
       "id": "RT_SECURITY_CHANGE_PASSWORD_GUIDE",

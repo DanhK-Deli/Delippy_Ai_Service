@@ -1,6 +1,6 @@
 import re
 from typing import Dict, Any, Optional
-from app.knowledge.ontology import ontology
+from app.knowledge.ontology import ontology, _strip_diacritics
 
 # Currency/quantity unit words - also present in the shared stopwords.json
 # (kept there for ontology.find_category(), which is safe to leave as-is:
@@ -21,7 +21,14 @@ class EntityExtractor:
             "category_id": None,
             "subcategory": None,
             "price_min": None,
-            "price_max": None
+            "price_max": None,
+            # A single-word guess find_category() itself declined to trust
+            # (see its min_overlap=2 fallback-tier gate) - never used to
+            # filter a search, only surfaced so parser.py can ask "bạn có
+            # muốn tìm loại {X} cụ thể không?" instead of silently searching
+            # with no category at all. None when even a weak guess doesn't
+            # exist (see ontology.find_category_weak()).
+            "weak_category": None,
         }
 
         # Check Category
@@ -35,6 +42,8 @@ class EntityExtractor:
             # which short-circuits find_category()'s step 1 (exact slug match)
             # and never reaches the subcategory-scoring step.
             entities["subcategory"] = cat_info.get("subcategory")
+        else:
+            entities["weak_category"] = ontology.find_category_weak(text)
 
         # Parse Prices (e.g., dưới 20 triệu, trên 5 tr, < 10tr, > 2 triệu)
         # Normalize million representation
@@ -95,6 +104,19 @@ class EntityExtractor:
     def clean_query_keywords(self, query: str) -> str:
         text = re.sub(r"\s+", " ", query.lower()).strip()
 
+        # No-diacritics guard, same rationale as ontology.find_category()'s
+        # own copy of this check: True only when the WHOLE text has no
+        # Vietnamese dấu at all ("toi muon mua nuoc giat"). When true, every
+        # stopword pattern below is ALSO ASCII-folded before matching, so a
+        # no-dấu filler word ("toi"/"muon") strips just like its accented
+        # form ("tôi"/"muốn") does today - otherwise it survived verbatim
+        # into the backend query text. Confirmed live: "toi muon mua nuoc
+        # giat" left query_q="toi muon nuoc giat" (only "mua" - already
+        # ASCII - stripped), sent to the backend as free text with no
+        # category filter, 0 results. A normal accented query never enters
+        # this branch, so it costs nothing extra.
+        is_no_diacritics = bool(text) and _strip_diacritics(text) == text
+
         # Stopwords to remove. Currency/quantity units (tr, k, đ, đồng...)
         # are deliberately NOT here: they are also real Vietnamese words/
         # syllables ("đồng" in "đồng hồ", "đồng phục") and must only be
@@ -108,7 +130,8 @@ class EntityExtractor:
         ]
 
         for word in stopwords:
-            text = re.sub(r"\b" + re.escape(word) + r"\b", "", text)
+            pattern = _strip_diacritics(word) if is_no_diacritics else word
+            text = re.sub(r"\b" + re.escape(pattern) + r"\b", "", text)
 
         # Marketing filler ("chính hãng", "giá rẻ", "hàng mới"...) doesn't help
         # the backend's free-text match and can push a real product out of a
@@ -117,7 +140,8 @@ class EntityExtractor:
         for word in ontology.stopwords:
             if word in _CURRENCY_UNIT_WORDS:
                 continue
-            text = re.sub(r"\b" + re.escape(word) + r"\b", "", text)
+            pattern = _strip_diacritics(word) if is_no_diacritics else word
+            text = re.sub(r"\b" + re.escape(pattern) + r"\b", "", text)
 
         # Remove a number ONLY when a currency/quantity unit is glued right
         # after it (e.g. "20 triệu", "500k", "500 đồng") - this is the only

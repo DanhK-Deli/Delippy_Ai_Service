@@ -1,3 +1,4 @@
+import difflib
 import json
 import math
 import os
@@ -12,6 +13,46 @@ def _strip_diacritics(text: str) -> str:
     text = text.replace("đ", "d").replace("Đ", "D")
     normalized = unicodedata.normalize("NFD", text)
     return "".join(c for c in normalized if unicodedata.category(c) != "Mn")
+
+# Typo-tolerance tier (find_category()/find_brand()'s last-resort fallback,
+# AFTER the exact and no-diacritics attempts both find nothing) - snaps an
+# unrecognized query word to its closest known vocabulary word via
+# difflib's stdlib SequenceMatcher ratio, no external dependency/model call.
+# Deliberately NOT applied to entity_extractor.clean_query_keywords's
+# stopword stripping: stopwords are mostly short (<=4 chars), and a short
+# word has many equally-close neighbors ("mua" is 0.8-similar to "mưa"/"múa"/
+# "mùa"/"mụa"...), so fuzzy-matching THOSE would misfire constantly. Scoped
+# to category/brand vocabulary words only, which are long enough (>=4 chars)
+# for a close match to be a genuine, low-ambiguity typo instead of a
+# coincidence, and are only ever used for internal category_id/brand
+# resolution - never rewritten into the actual backend search text (same
+# boundary the no-diacritics fallback above already keeps).
+_MIN_FUZZY_WORD_LEN = 4
+# 0.75, not difflib's usual 0.8+ default: a single wrong Vietnamese tone mark
+# ("điẹn" for "điện", "thoai" for "thoại") already lands at ratio ~0.75-0.8,
+# since each vowel+tone combination is its own Unicode codepoint - one wrong
+# tone is a whole-character diff, not a small edit, on an already-short
+# word. Verified against a batch of unrelated English filler words (table,
+# pizza, coffee, hello...) at this cutoff + the length-similarity
+# pre-filter: no spurious matches beyond one defensible case (table->tablet,
+# an actual product-relevant near-miss, not a false positive).
+_FUZZY_CUTOFF = 0.75
+
+def _fuzzy_correct_words(words: set, vocab: List[str]) -> set:
+    vocab_set = set(vocab)
+    corrected = set()
+    for w in words:
+        if w in vocab_set or len(w) < _MIN_FUZZY_WORD_LEN:
+            corrected.add(w)
+            continue
+        # Pre-filter to similar-length candidates before scoring - cuts
+        # difflib's comparison set down from the whole vocabulary (hundreds
+        # of words) to a handful, keeping this fallback cheap even though
+        # it's O(vocab) in the worst case.
+        candidates = [v for v in vocab if abs(len(v) - len(w)) <= 2]
+        match = difflib.get_close_matches(w, candidates, n=1, cutoff=_FUZZY_CUTOFF)
+        corrected.add(match[0] if match else w)
+    return corrected
 
 class Ontology:
     _instance = None
@@ -39,6 +80,10 @@ class Ontology:
     # ("sạc không dây" wireless -> "sạc dây" wired) and removing "đồ" would break
     # "đồ chơi trẻ em". These words must be dropped from category matching only.
     _CATEGORY_NOISE_WORDS = {"sản", "phẩm", "đồ", "xem", "không", "đã", "bị"}
+    # ASCII-folded mirror, for _category_query_words()'s no-diacritics
+    # fallback (see there) - computed here since _strip_diacritics is
+    # already defined above at module scope by the time this class body runs.
+    _CATEGORY_NOISE_WORDS_STRIPPED = {_strip_diacritics(w) for w in _CATEGORY_NOISE_WORDS}
 
     # Minimum IDF-weighted single-word score to trust as a category signal -
     # see _score_subcategories() for the calibration (df/N distribution of
@@ -106,6 +151,18 @@ class Ontology:
         self.category_phrases: Dict[str, List[str]] = self._load_json(os.path.join(base_dir, "category_phrases.json"))
         self.categories: Dict[str, Any] = self._load_json(os.path.join(base_dir, "categories.json"))
         self._subcat_word_df, self._subcat_count = self._build_word_doc_freq()
+        # ASCII-folded mirror of the same table, for find_category()'s
+        # no-diacritics fallback (see its own docstring note) - a query typed
+        # without dấu ("nuoc giat") can never overlap this vocabulary's
+        # accented words, so scoring needs its own stripped word-space to
+        # match against. Built once here (load time), not per-request.
+        self._subcat_word_df_stripped, _ = self._build_word_doc_freq(stripped=True)
+        # Typo-tolerance vocabulary (find_category()'s tier-3 fallback, see
+        # _fuzzy_correct_words) - just the keys of the two doc-freq tables
+        # above, already built, filtered to words long enough for a fuzzy
+        # match to mean anything (see _MIN_FUZZY_WORD_LEN).
+        self._category_vocab: List[str] = [w for w in self._subcat_word_df if len(w) >= _MIN_FUZZY_WORD_LEN]
+        self._category_vocab_stripped: List[str] = [w for w in self._subcat_word_df_stripped if len(w) >= _MIN_FUZZY_WORD_LEN]
         self.brands: Dict[str, List[str]] = self._load_json(os.path.join(base_dir, "brands.json"))
         self.accessory_rules: Dict[str, List[str]] = self._load_json(os.path.join(base_dir, "accessories.json"))
         # Flat, attribute-keyed (e.g. "budget", "purpose", "family_size") -
@@ -177,6 +234,32 @@ class Ontology:
         # of trying to jailbreak the bot. See intent_classifier.is_prompt_probe_query.
         self.prompt_probe_responses: List[str] = self._load_json(os.path.join(base_dir, "prompt_probe_responses.json"))
         self.stopwords: set = set(self._load_json(os.path.join(base_dir, "stopwords.json")) or [])
+        # No-diacritics mirrors of every dictionary find_category()/find_brand()/
+        # normalize_term()/entity_extractor.clean_query_keywords() match
+        # against - all built ONCE here (service load, not per-request) so the
+        # no-diacritics fallback each of those adds is just another O(1) dict
+        # lookup, identical cost to the existing accented one. Only ever
+        # consulted when the INPUT text itself has no diacritic marks (see
+        # each call site's own `_strip_diacritics(text) == text` guard) - a
+        # normal, properly-accented query never reaches these and pays
+        # nothing extra. A collision where two different accented words fold
+        # to the same stripped form (e.g. "ga"/"gà") is an accepted, inherent
+        # ambiguity of typing without dấu in the first place - the same
+        # tie-break safeguards find_category() already has for the accented
+        # path (reject an unresolvable cross-category tie rather than guess)
+        # cover this fallback too, since it reuses _score_subcategories().
+        self.stopwords_stripped: set = {_strip_diacritics(w) for w in self.stopwords}
+        self._aliases_stripped: Dict[str, str] = {_strip_diacritics(k): v for k, v in self.aliases.items()}
+        self._synonym_lookup_stripped: Dict[str, str] = {
+            _strip_diacritics(syn): canonical
+            for canonical, syn_list in self.synonyms.items()
+            for syn in syn_list
+        }
+        self._brands_stripped: Dict[str, str] = {}
+        for _brand, _models in self.brands.items():
+            self._brands_stripped[_strip_diacritics(_brand)] = _brand
+            for _model in _models:
+                self._brands_stripped[_strip_diacritics(_model)] = _brand
 
         # Warm response pools - deterministic (LLM-free) paths pick randomly
         # from these instead of a single fixed string, so SEARCH/PRODUCT_INFO/
@@ -205,7 +288,7 @@ class Ontology:
         except Exception:
             return {}
 
-    def _subcategory_words(self, cat_name: str, sub_name: str) -> set:
+    def _subcategory_words(self, cat_name: str, sub_name: str, stripped: bool = False) -> set:
         """All words identifying a subcategory: its own name, its synonym
         phrases, AND its top-level category's name. Folding in the top-level
         name lets a generic word ("máy") still tip the balance toward the
@@ -213,26 +296,36 @@ class Ontology:
         e.g. "máy tính-máy ảnh máy quay" reinforces "máy" for its "nạp mực
         in" subcategory, breaking a tie against an unrelated "in ấn, dịch
         thuật" (printing SERVICES, not hardware) subcategory that only
-        shares the word "in"."""
+        shares the word "in".
+
+        `stripped` returns the ASCII-folded form of the same word set
+        instead (for the no-diacritics fallback - see find_category()) -
+        same words, just diacritics-insensitive, so a caller never needs to
+        fold this set itself."""
         words = set(w for w in re.split(r"[^\w]+", cat_name.lower(), flags=re.UNICODE) if w)
         words |= set(w for w in re.split(r"[^\w]+", sub_name, flags=re.UNICODE) if w)
         for syn_phrase in self.synonyms.get(sub_name, []):
             words |= set(w for w in re.split(r"[^\w]+", syn_phrase.lower(), flags=re.UNICODE) if w)
+        if stripped:
+            return {_strip_diacritics(w) for w in words}
         return words
 
-    def _build_word_doc_freq(self):
+    def _build_word_doc_freq(self, stripped: bool = False):
         """Document frequency of each word across all subcategories - how
         many distinct subcategories a word shows up in. Powers the IDF
         weighting in find_category(): a word shared by many subcategories
         ("máy" - appears in ~18) is a much weaker signal than one nearly
         unique to a handful ("giặt"/"in" - appear in ~2), so a rare word
-        should outrank a common one even when it's the only word matched."""
+        should outrank a common one even when it's the only word matched.
+
+        `stripped` builds the same table in ASCII-folded word-space, for the
+        no-diacritics fallback (see find_category())."""
         df: Dict[str, int] = {}
         count = 0
         for cat_name, cat_data in self.categories.items():
             for sub_name in cat_data.get("subcategories", {}).keys():
                 count += 1
-                for w in self._subcategory_words(cat_name, sub_name):
+                for w in self._subcategory_words(cat_name, sub_name, stripped=stripped):
                     df[w] = df.get(w, 0) + 1
         return df, count
 
@@ -249,6 +342,16 @@ class Ontology:
         for canonical, syn_list in self.synonyms.items():
             if term_clean in syn_list:
                 return canonical
+        # No-diacritics fallback ("dien thoai" -> "điện thoại") - only tried
+        # when the term itself has no dấu to begin with (a term that already
+        # carries dấu and still matched nothing is a genuine unknown term,
+        # not a diacritics problem), against dictionaries built once at
+        # reload() (see there) so this costs one more O(1) dict lookup, same
+        # as the accented attempts above.
+        if _strip_diacritics(term_clean) == term_clean:
+            stripped = self._aliases_stripped.get(term_clean) or self._synonym_lookup_stripped.get(term_clean)
+            if stripped:
+                return stripped
         return term_clean
 
     def find_brand(self, text: str) -> Optional[str]:
@@ -262,35 +365,92 @@ class Ontology:
             for model in models:
                 if re.search(rf"\b{re.escape(model)}\b", text_lower):
                     return brand
+        # No-diacritics fallback - same guard/rationale as normalize_term()
+        # above. Brand names/models are mostly already ASCII (Samsung, Sony,
+        # Honda...) so this mainly helps the handful with Vietnamese spelling.
+        if _strip_diacritics(text_lower) == text_lower:
+            for stripped_key, brand in self._brands_stripped.items():
+                if re.search(rf"\b{re.escape(stripped_key)}\b", text_lower):
+                    return brand
+        # Typo tolerance - last resort, single-word brand NAMES only (not
+        # multi-word models: too structurally varied to fuzzy-match safely,
+        # e.g. "iphone 15 pro max" has no single close neighbor to snap to).
+        words = [w for w in re.split(r"[^\w]+", text_lower, flags=re.UNICODE) if len(w) >= _MIN_FUZZY_WORD_LEN]
+        if words:
+            brand_vocab = list(self.brands.keys())
+            for w in words:
+                if w in self.brands:
+                    continue
+                candidates = [b for b in brand_vocab if abs(len(b) - len(w)) <= 2]
+                match = difflib.get_close_matches(w, candidates, n=1, cutoff=_FUZZY_CUTOFF)
+                if match:
+                    return match[0]
         return None
 
-    def _category_query_words(self, text_lower: str) -> set:
+    def _category_query_words(self, text_lower: str, stripped: bool = False) -> set:
         """Tokenize + strip filler for the IDF subcategory scorer - shared by
         find_category() (resolving a user query) and best_subcategory_for_product()
         (resolving a PRODUCT NAME, to check it actually belongs to the
-        subcategory the query resolved to - see ranker.py)."""
-        return {
-            w for w in re.split(r"[^\w]+", text_lower, flags=re.UNICODE)
-            if len(w) > 1 and w not in self.stopwords and w not in self._CATEGORY_NOISE_WORDS
-        }
+        subcategory the query resolved to - see ranker.py).
 
-    def _score_subcategories(self, query_words: set) -> Optional[Dict[str, Any]]:
+        `stripped` ASCII-folds both the input AND the stopword/noise-word
+        filter (self.stopwords_stripped / _CATEGORY_NOISE_WORDS_STRIPPED) -
+        an earlier version filtered against the ACCENTED lists even here,
+        on the assumption an unaccented token could never match an accented
+        stopword and would just "fall through harmlessly". That assumption
+        was wrong: it meant NO stopword filtering happened at all for a
+        no-diacritics query, letting filler words leak into the scorer as
+        real candidate words - confirmed live: "toi can tim banh canh cu de
+        an" left "can" (từ "cần" - filler "need") in as a query word, which
+        then collided with "căn" (từ "căn hộ" - apartment, a real vocab
+        word: both fold to the SAME stripped "can") and confidently
+        resolved the whole query to bất động sản instead of food."""
+        stopwords = self.stopwords_stripped if stripped else self.stopwords
+        noise_words = self._CATEGORY_NOISE_WORDS_STRIPPED if stripped else self._CATEGORY_NOISE_WORDS
+        words = {
+            w for w in re.split(r"[^\w]+", text_lower, flags=re.UNICODE)
+            if len(w) > 1 and w not in stopwords and w not in noise_words
+        }
+        if stripped:
+            return {_strip_diacritics(w) for w in words}
+        return words
+
+    def _score_subcategories(self, query_words: set, stripped: bool = False, min_overlap: int = 1) -> Optional[Dict[str, Any]]:
         """Core IDF-weighted subcategory scorer - see find_category() step 3
         for the full rationale. Factored out so best_subcategory_for_product()
         can reuse the exact same scoring against a product name instead of a
-        user query."""
+        user query.
+
+        `stripped` scores against the ASCII-folded vocabulary/doc-freq table
+        instead (both built once at reload() - see there) - same algorithm,
+        same tie-break safeguards below, just a different word-space; callers
+        must pass `query_words` already folded to match (see find_category()).
+
+        `min_overlap` demands at least that many overlapping words before
+        trusting ANY result, bypassing the single-word weight-threshold trust
+        below entirely - used by find_category()'s no-diacritics/typo
+        fallback tiers (min_overlap=2), which don't get to rely on that
+        threshold the way the primary accented tier does: it was calibrated
+        against the real, curated accented vocabulary ("áo"/"quần" are
+        genuinely rare there), but accent-folding or typo-correction can
+        make an UNRELATED word land on the same rare slot by coincidence -
+        confirmed live twice over (see find_category()'s own notes on "nam"
+        and "cần"->"căn"). Requiring a second corroborating word is a much
+        safer bar for a fallback tier to clear than trusting any single
+        lucky-weight word."""
         if not query_words:
             return None
+        word_df = self._subcat_word_df_stripped if stripped else self._subcat_word_df
         scored = []  # (score_tuple, overlap_set, result_dict) - first-encountered order
         for cat_name, cat_data in self.categories.items():
             for sub_name in cat_data.get("subcategories", {}).keys():
-                sub_words = self._subcategory_words(cat_name, sub_name)
+                sub_words = self._subcategory_words(cat_name, sub_name, stripped=stripped)
                 if not sub_words:
                     continue
                 overlap = query_words & sub_words
                 if not overlap:
                     continue
-                weighted = sum(math.log(self._subcat_count / self._subcat_word_df.get(w, 1)) for w in overlap)
+                weighted = sum(math.log(self._subcat_count / word_df.get(w, 1)) for w in overlap)
                 score = (weighted, len(overlap))
                 result = {"id": cat_data.get("id"), "slug": cat_data.get("slug"), "level": 1, "subcategory": sub_name}
                 scored.append((score, overlap, result))
@@ -309,6 +469,8 @@ class Ontology:
         # "giày") and still resolves - we just keep the first-encountered one,
         # exactly as before.
         best_score = max(s for s, _, _ in scored)
+        if best_score[1] < min_overlap:
+            return None
         top = [(overlap, result) for score, overlap, result in scored if score == best_score]
         if len(top) > 1 and not set.intersection(*(overlap for overlap, _ in top)):
             return None
@@ -534,12 +696,28 @@ class Ontology:
 
     def find_category(self, text: str) -> Optional[Dict[str, Any]]:
         text_lower = text.lower()
+        # Whole-string no-diacritics guard, reused by steps 1-3's fallback
+        # below: True only when text_lower carries NO Vietnamese diacritic
+        # marks at all ("nuoc giat"), never for a normal accented query that
+        # simply didn't match anything ("nước giặt" alone still resolves via
+        # the accented path below, unaffected). A text that already has dấu
+        # and still matches nothing is a genuine unknown term, not a
+        # diacritics problem - so this fallback only ever fires for the
+        # currently-100%-broken no-dấu case, at zero extra cost for every
+        # normal query (one string comparison, done once here).
+        is_no_diacritics = bool(text_lower) and _strip_diacritics(text_lower) == text_lower
 
         # 1. Exact match on a main category's own name/slug - rare but strongest signal
         for cat_name, cat_data in self.categories.items():
             slug = cat_data.get("slug") or ""
             if cat_name in text_lower or (slug and slug in text_lower):
                 return {"id": cat_data.get("id"), "slug": cat_data.get("slug"), "level": 1, "subcategory": None}
+        if is_no_diacritics:
+            for cat_name, cat_data in self.categories.items():
+                slug = cat_data.get("slug") or ""
+                stripped_name = _strip_diacritics(cat_name)
+                if stripped_name in text_lower or (slug and slug in text_lower):
+                    return {"id": cat_data.get("id"), "slug": cat_data.get("slug"), "level": 1, "subcategory": None}
 
         # 2. Literal multi-word phrase match. A subcategory's own name or one
         # of its synonym phrases (2+ words) appearing verbatim in the query is
@@ -557,7 +735,8 @@ class Ontology:
             for sub_name in cat_data.get("subcategories", {}).keys():
                 for phrase in [sub_name] + self.synonyms.get(sub_name, []) + self.category_phrases.get(sub_name, []):
                     phrase = phrase.lower()
-                    if len(phrase.split()) < 2 or phrase not in text_lower:
+                    candidate = _strip_diacritics(phrase) if is_no_diacritics else phrase
+                    if len(phrase.split()) < 2 or candidate not in text_lower:
                         continue
                     if not best_phrase or len(phrase) > len(best_phrase[0]):
                         best_phrase = (phrase, {"id": cat_data.get("id"), "slug": cat_data.get("slug"), "level": 1, "subcategory": sub_name})
@@ -593,7 +772,75 @@ class Ontology:
         # widens what find_category() can resolve; it does NOT touch
         # normalize_term()/query_q, so backend search text stays exactly
         # what the user typed.
-        return self._score_subcategories(self._category_query_words(text_lower))
+        #
+        # For a genuinely no-dấu query, go straight to the ASCII-folded
+        # scorer instead of trying the accented one first: several common
+        # Vietnamese words carry no diacritics even when properly spelled
+        # ("nam", "cho", "ba"...), so the accented attempt can still find a
+        # coincidental PARTIAL match on those alone (e.g. "ao thun nam" ->
+        # "nam" alone matching "chăm sóc cho nam giới") and return it before
+        # the fuller stripped comparison (which also catches "ao"->"áo",
+        # correctly winning "thời trang nam" with a stronger 2-word overlap)
+        # ever gets a chance to run. The stripped table is a strict superset
+        # of what the accented one can match here, so there's no case where
+        # trying accented first would find something stripped would miss.
+        # Both fallback tiers below (no-diacritics AND typo-correction) require
+        # a 2+-word overlap to trust a result - the primary accented tier
+        # right below keeps its normal min_overlap=1 (default), since ITS
+        # single-word trust threshold (_MIN_SINGLE_WORD_WEIGHT) was
+        # calibrated against the real, curated accented vocabulary where a
+        # rare word genuinely means something ("áo"/"quần" alone). Accent-
+        # folding or typo-correction can land an UNRELATED word on that same
+        # rare slot purely by coincidence - confirmed live twice: "nam" (a
+        # naturally-unaccented word) and "cần"->"can" colliding with "căn"
+        # (apartment) both produced a confident but wrong single-word
+        # resolution before this gate existed. A 2nd corroborating word is a
+        # much safer bar for a tier that's already guessing.
+        if is_no_diacritics:
+            words = self._category_query_words(text_lower, stripped=True)
+            result = self._score_subcategories(words, stripped=True, min_overlap=2)
+            if result:
+                return result
+            # 4. Typo tolerance - last resort, only reached when steps 1-3
+            # above found NOTHING at all. Snaps each unrecognized word to its
+            # closest known vocabulary neighbor (see _fuzzy_correct_words)
+            # and retries the exact same scorer/tie-break logic - so a typo'd
+            # word gets exactly as much scrutiny as a correctly-spelled one,
+            # it's just been substituted first.
+            fuzzy_words = _fuzzy_correct_words(words, self._category_vocab_stripped)
+            return self._score_subcategories(fuzzy_words, stripped=True, min_overlap=2) if fuzzy_words != words else None
+        words = self._category_query_words(text_lower)
+        result = self._score_subcategories(words)
+        if result:
+            return result
+        fuzzy_words = _fuzzy_correct_words(words, self._category_vocab)
+        return self._score_subcategories(fuzzy_words, min_overlap=2) if fuzzy_words != words else None
+
+    def find_category_weak(self, text: str) -> Optional[Dict[str, Any]]:
+        """The single-word guess find_category()'s no-diacritics/typo
+        fallback tiers found but rejected for being below their min_overlap=2
+        confidence bar (see find_category()) - for callers that want to
+        SUGGEST it to the user ("bạn có muốn tìm loại {X} cụ thể không?")
+        instead of either trusting it outright or discarding it. Never used
+        to filter a search directly - only find_category()'s confident
+        result is. Recomputes the exact same tiers WITHOUT the 2-word
+        requirement; returns None if even a single word doesn't match
+        anything (nothing to suggest)."""
+        text_lower = text.lower()
+        is_no_diacritics = bool(text_lower) and _strip_diacritics(text_lower) == text_lower
+        if is_no_diacritics:
+            words = self._category_query_words(text_lower, stripped=True)
+            result = self._score_subcategories(words, stripped=True)
+            if result:
+                return result
+            fuzzy_words = _fuzzy_correct_words(words, self._category_vocab_stripped)
+            return self._score_subcategories(fuzzy_words, stripped=True) if fuzzy_words != words else None
+        words = self._category_query_words(text_lower)
+        result = self._score_subcategories(words)
+        if result:
+            return result
+        fuzzy_words = _fuzzy_correct_words(words, self._category_vocab)
+        return self._score_subcategories(fuzzy_words) if fuzzy_words != words else None
 
     def subcategories_for(self, category: str) -> Optional[Dict[str, Any]]:
         """Display name + id + subcategory list (each with its own real

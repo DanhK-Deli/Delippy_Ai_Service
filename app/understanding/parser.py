@@ -8,6 +8,20 @@ from app.chat.lazy import Lazy
 from app.client.llm_client import llm_client_wrapper
 from app.database.parse_cache_repository import parse_cache_repo
 from app.models.shopping_context import ShoppingContext
+from app.knowledge.ontology import ontology
+
+def _weak_candidate_payload(weak: Dict[str, Any]) -> Dict[str, Optional[str]]:
+    """Shapes an ontology.find_category_weak() result into what
+    response_planner.py/response_formatter.py/memory_resolver.py need: a
+    slug+subcategory pair to APPLY if the user confirms, plus a
+    human-readable name to show IN the question. Prefers the subcategory
+    name (already human-readable, e.g. "sữa - tả - bình sữa") since it's
+    more specific than the top-level category display name."""
+    return {
+        "category": weak.get("slug"),
+        "subcategory": weak.get("subcategory"),
+        "display": weak.get("subcategory") or ontology.category_display_name(weak.get("slug")),
+    }
 
 # Matches "số 1", "phòng số 2", "sản phẩm số 3"... Deliberately NOT "thứ N" -
 # "thứ 2"/"thứ 4"/"thứ 7" etc. are also the standard Vietnamese way to write
@@ -186,7 +200,7 @@ class QueryParser:
             consultation_level = ("expert" if is_advisory_query(query) else "none") if intent == "SEARCH" else None
             print(f"  - Deterministic Parse Result -> Intent: {intent}, Sub Intent: {sub_intent}, Consultation: {consultation_level}, Core Query q: '{cleaned_q}'"
                   + (f", Compare Targets: {compare_targets}" if intent == "COMPARE" else ""))
-            return ShoppingContext(
+            ctx = ShoppingContext(
                 intent=intent,
                 sub_intent=sub_intent,
                 consultation_level=consultation_level,
@@ -198,6 +212,9 @@ class QueryParser:
                 query_q=cleaned_q,
                 compare_targets=compare_targets,
             )
+            if intent == "SEARCH" and not entities["category"] and entities["weak_category"]:
+                ctx._category_confirm_candidate = _weak_candidate_payload(entities["weak_category"])
+            return ctx
 
         # 4. Semantic parse cache - skip the Gemini parse entirely when a
         # sufficiently similar PAST query was already parsed AND led to a
@@ -347,10 +364,30 @@ class QueryParser:
         # defeated the advisory-follow-up-grounds-in-cache path.
         if not ai_context.brand and entities["brand"]:
             ai_context.brand = entities["brand"]
-        if not ai_context.category and entities["category"]:
-            ai_context.category = entities["category"]
-            if not ai_context.subcategory and entities["subcategory"]:
-                ai_context.subcategory = entities["subcategory"]
+        # Category/subcategory only mean anything for a product-bearing intent
+        # (SEARCH/COMPARE/PRODUCT_INFO). entity_extractor.extract() runs
+        # find_category() on the raw text with zero intent-awareness, so for a
+        # GREETING/SOCIAL/CHITCHAT/FAQ turn its guess is often a coincidental
+        # single-word misfire that only LOOKS trustworthy (find_category()'s
+        # rare-word tie-break exists precisely to let real rare nouns like
+        # "áo"/"quần" resolve on their own - see ontology.py - but that same
+        # rule also lets a token like "trẻ" resolve confidently off ITS rare
+        # vocabulary even when the actual word was "trẻ trung", unrelated to
+        # "trẻ em"). Confirmed live: "trẻ trung" correctly parsed as
+        # CHITCHAT/out_of_scope with no category from the AI, then this overlay
+        # stamped category="me-be" onto it anyway, purely because "trẻ" ties
+        # to the mẹ & bé vocabulary.
+        if ai_context.intent in ("SEARCH", "COMPARE", "PRODUCT_INFO"):
+            if not ai_context.category and entities["category"]:
+                ai_context.category = entities["category"]
+                if not ai_context.subcategory and entities["subcategory"]:
+                    ai_context.subcategory = entities["subcategory"]
+            elif ai_context.intent == "SEARCH" and not ai_context.category and entities["weak_category"]:
+                # AI ALSO found no confident category (same gate reasoning as
+                # the deterministic branch above - see there) - surface the
+                # weak guess for a confirm question instead of just accepting
+                # a category-less search.
+                ai_context._category_confirm_candidate = _weak_candidate_payload(entities["weak_category"])
 
         # Tag as a fresh AI parse and snapshot its SESSION-INDEPENDENT semantic
         # fields (pre memory-merge) so the orchestrator can cache it verbatim if

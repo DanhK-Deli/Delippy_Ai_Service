@@ -8,6 +8,20 @@ def _shares_a_word(a: Optional[str], b: Optional[str]) -> bool:
         return False
     return bool(set(a.lower().split()) & set(b.lower().split()))
 
+# Used ONLY to resolve a CONFIRM_CATEGORY resume (see resolve() below) -
+# unlike resolve_followup()'s deliberately-generic "any SOCIAL reply resumes"
+# design, THIS one specific awaiting type needs its actual polarity read,
+# since accepting vs declining the suggested category leads to different
+# context. Deliberately narrow/literal (not a broader sentiment classifier):
+# an unclear/ambiguous reply should fall through to the generic advisory
+# resume (just continue the category-less search already run), not risk
+# mis-applying a category the user didn't actually confirm.
+_AFFIRMATIVE_MARKERS = ["có", "co", "đúng", "dung", "ừ", "u", "vâng", "vang", "phải", "phai", "yes", "ok", "okay", "đc", "dc", "được", "duoc", "chuẩn", "chuan"]
+
+def _is_affirmative(message: str) -> bool:
+    text = (message or "").lower().strip()
+    return any(text == m or text.startswith(m + " ") for m in _AFFIRMATIVE_MARKERS)
+
 # A reply this long, classified SOCIAL, sitting right after a live pending
 # question is unusual enough to more likely be a genuinely new (mis-tagged)
 # aside than an answer to that question - don't force-resume past this
@@ -103,6 +117,19 @@ class MemoryResolver:
                     memory["search_results"] = cached
                     current_context.intent = "COMPARE"
                     current_context.compare_targets = [product["name"], candidate["name"]]
+                elif resumed.get("action") == "CONFIRM_CATEGORY" and target.get("candidate") and _is_affirmative(message):
+                    # response_planner.py asked "bạn có muốn tìm loại {X} cụ
+                    # thể không?" for a category find_category() itself
+                    # declined to trust alone (see parser.py's
+                    # _category_confirm_candidate) - a clear yes APPLIES it
+                    # now; anything else (a clear no, or genuinely
+                    # unrelated/ambiguous wording) falls to the generic
+                    # advisory resume below, which just continues the
+                    # category-less search already run for that turn.
+                    candidate = target["candidate"]
+                    current_context.intent = "SEARCH"
+                    current_context.category = candidate.get("category")
+                    current_context.subcategory = candidate.get("subcategory")
                 else:
                     # Resume as an advisory continuation of whatever's
                     # already in memory (cached products/category/etc,
