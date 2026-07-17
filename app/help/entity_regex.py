@@ -65,7 +65,25 @@ def extract_entity_value(entity_name: Optional[str], message: str) -> Optional[s
         return message.strip() or None
     if entity_name == "ma_don_hang":
         m = _ORDER_CODE_RE.search(message) or _ORDER_CODE_FALLBACK_RE.search(message)
-        return m.group(0).upper() if m else None
+        if m:
+            return m.group(0).upper()
+        # Our known order-code shapes aren't exhaustive (real codes may use a
+        # different prefix/length/separator than DEL.../8-20 alnum) - treating
+        # a non-matching reply as "didn't answer" used to wipe the whole
+        # pending cancel/return flow (case + business_object_ids) and restart
+        # Step 1 from scratch on just this one message, losing the customer's
+        # original intent entirely. A single-token reply with a digit in it
+        # that isn't a question is still the customer answering "what's the
+        # order code" - accept it best-effort and let Step 2's real lookup
+        # validate/404 it (that path already degrades gracefully via
+        # ErrorGroup.NOT_FOUND without escalating or dropping context).
+        text = message.strip()
+        if (
+            text and not _looks_like_a_question(text) and " " not in text
+            and 4 <= len(text) <= 30 and any(c.isdigit() for c in text)
+        ):
+            return text.upper()
+        return None
     if entity_name in ("so_dien_thoai", "so_dien_thoai_hoac_email"):
         m = _PHONE_RE.search(message) or _EMAIL_RE.search(message)
         return m.group(0) if m else None

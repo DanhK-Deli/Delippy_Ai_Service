@@ -354,6 +354,42 @@ class LLMClientWrapper:
             print(f"\n[{llm_provider.name} - Error in Product Deep Dive] {e}.\n")
             return None
 
+    async def format_product_focus_reply(
+        self, product_name: str, focus: Dict[str, bool],
+        price: Optional[float], stock: Optional[int],
+        sizes: List[str], colors: List[str],
+    ) -> Optional[str]:
+        """Short, natural-sounding reply for a NARROW PRODUCT_INFO ask (giá
+        and/or size/màu only - see intent_classifier.classify_product_focus).
+        Deliberately a separate, much smaller call than
+        format_product_deep_dive(): a bare "giá bao nhiêu" doesn't need a
+        market analysis, just the requested field(s) worded naturally.
+        Returns None on any failure so the caller (response_formatter's
+        DETAIL_FOCUS branch) falls back to a plain deterministic line."""
+        facts = []
+        if focus.get("price"):
+            facts.append(f"Giá: {price:,.0f}đ" if price is not None else "Giá: chưa rõ")
+            facts.append(f"Tình trạng kho: {'còn hàng' if (stock or 0) > 0 else 'hết hàng'}")
+        if focus.get("variant"):
+            facts.append(f"Kích cỡ có sẵn: {', '.join(sizes) if sizes else 'chưa có thông tin size cụ thể'}")
+            facts.append(f"Màu sắc có sẵn: {', '.join(colors) if colors else 'chưa có thông tin màu cụ thể'}")
+        if not facts:
+            return None
+        template = load_prompt_template("product_focus_prompt.txt")
+        prompt = template.format(
+            product_name=product_name,
+            facts="\n".join(f"- {f}" for f in facts),
+        )
+        if not llm_provider.is_available():
+            return None
+        try:
+            result = await llm_provider.generate_text(prompt=prompt, model_tier="product_focus")
+            log_usage("Product Focus Reply", result.prompt_tokens, result.completion_tokens)
+            return result.value
+        except Exception as e:
+            print(f"\n[{llm_provider.name} - Error in Product Focus Reply] {e}.\n")
+            return None
+
     def get_embedding(
         self,
         text: str,

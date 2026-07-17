@@ -32,7 +32,10 @@ class GeminiProvider(LLMProvider):
     # just like visible output, so a big budget directly worked against the
     # "make deep-dive fast" goal; 256 is enough to catch an obviously-unknown
     # product without adding much generation time.
-    _THINKING_BUDGET = {"cheap": 0, "complex": 1024, "deep_dive": 256}
+    # "product_focus" (format_product_focus_reply) needs no reasoning at all -
+    # it's just wording 1-2 already-known facts (giá/size/màu) naturally, not
+    # judging whether a product is recognized like "deep_dive" does.
+    _THINKING_BUDGET = {"cheap": 0, "complex": 1024, "deep_dive": 256, "product_focus": 0}
 
     # Hard backstop on deep-dive length: product_deep_dive_prompt.txt already
     # asks for "150-200 từ" in plain text, but that's a soft request the
@@ -49,7 +52,10 @@ class GeminiProvider(LLMProvider):
     # outputs are already shape-bounded by their own schema/task, so a cap
     # there risks truncating a legitimate structured response instead of
     # protecting against a runaway one.
-    _MAX_OUTPUT_TOKENS = {"deep_dive": 900}
+    # product_focus's own prompt asks for "tối đa 40 từ" - 150 tokens is
+    # already generous headroom for that (no thinking budget to share it
+    # with, unlike deep_dive), just a backstop against a runaway reply.
+    _MAX_OUTPUT_TOKENS = {"deep_dive": 900, "product_focus": 150}
 
     def __init__(self) -> None:
         self.client = genai.Client(api_key=settings.GEMINI_API_KEY) if settings.GEMINI_API_KEY else None
@@ -60,6 +66,7 @@ class GeminiProvider(LLMProvider):
             # deep-dive always uses the cheap/flash model, only the thinking
             # budget differs (see _THINKING_BUDGET above).
             "deep_dive": settings.GEMINI_MODEL_CHEAP,
+            "product_focus": settings.GEMINI_MODEL_CHEAP,
         }
 
     def is_available(self) -> bool:

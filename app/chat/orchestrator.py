@@ -5,7 +5,12 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 from app.chat.session_manager import session_manager
 from app.understanding.parser import query_parser
-from app.understanding.intent_classifier import is_advisory_query, classify_faq_topic, is_no_preference_reply, is_tech_explain_query
+from app.understanding.intent_classifier import (
+    is_advisory_query, classify_faq_topic, is_no_preference_reply, is_tech_explain_query,
+    is_cskh_support_query, classify_product_focus, is_narrow_product_query, is_checkout_intent_query,
+    is_ordinal_position_query, is_alternative_request_query,
+)
+from app.understanding.query_expander import query_expander
 from app.understanding.entity_extractor import entity_extractor
 from app.chat.memory_resolver import memory_resolver, _shares_a_word
 from app.chat.lazy import Lazy
@@ -486,6 +491,102 @@ class Orchestrator:
         # the others just await that same in-flight computation.
         query_vector_lazy = Lazy(lambda: asyncio.to_thread(llm_client_wrapper.get_embedding, message))
 
+        # Check if this is a Customer Support (CSKH) query that should be redirected
+        if is_cskh_support_query(message):
+            answer = (
+                "Chào bạn, để được hỗ trợ các thông tin về theo dõi đơn hàng, mã giảm giá/voucher, "
+                "điểm thưởng DP, tài khoản hoặc giới thiệu về Delippy, bạn vui lòng chuyển sang "
+                "chế độ Chăm sóc khách hàng (CSKH) bằng cách ấn vào biểu tượng 3 chấm ở góc dưới bên trái màn hình "
+                "và chọn \"Chế độ Chăm sóc khách hàng\" nhé. Tại đó, trợ lý hỗ trợ sẽ giải đáp nhanh nhất cho bạn!"
+            )
+            
+            async def _save_user_message_cskh() -> None:
+                vector = await query_vector_lazy.get()
+                await conversation_repo.save_message(conversation.session_id, "user", message, vector)
+            asyncio.create_task(_save_user_message_cskh())
+            
+            async def _save_assistant_message_cskh() -> None:
+                vector = await asyncio.to_thread(llm_client_wrapper.get_embedding, answer)
+                await conversation_repo.save_message(conversation.session_id, "assistant", answer, vector)
+            asyncio.create_task(_save_assistant_message_cskh())
+            
+            await session_manager.add_message(conversation, "user", message)
+            await session_manager.add_message(conversation, "assistant", answer)
+            await session_manager.save_session(conversation)
+            
+            _log_pipeline_timings(timings, t0, "CSKH_REDIRECT")
+            return {
+                "summary": "CSKH_REDIRECT",
+                "answer": answer,
+                "intent": "FAQ",
+                "mode": "faq",
+                "confidence": 1.0,
+                "highlights": [],
+                "follow_up_actions": [],
+                "warnings": [],
+                "source_list": [],
+                "response_time_ms": (time.perf_counter() - t0) * 1000,
+                "tokens_used": 0,
+                "data": {
+                    "session_id": conversation.session_id,
+                    "memory": conversation.memory,
+                    "products": []
+                }
+            }
+
+        # Checkout confirmation ("chốt đơn", "lấy cái này") right after a
+        # product consult - often phrased as a bare confirmation, not a full
+        # sentence (see is_checkout_intent_query's own docstring). Only
+        # fires when there's an actual last-viewed product to attach/confirm
+        # (see orchestrator.py's PRODUCT_INFO branch storing
+        # last_product_detail) - otherwise there's nothing to order yet, so
+        # this falls through to the normal pipeline unchanged instead of
+        # replying about a product that was never discussed.
+        last_product_detail = conversation.memory.get("last_product_detail")
+        if is_checkout_intent_query(message) and last_product_detail:
+            product_name = last_product_detail.get("name")
+            answer = (
+                f"Dạ được ạ! Để đặt **{product_name}**, bạn có thể:\n"
+                f"- Bấm vào sản phẩm bên dưới để xem chi tiết, sau đó chọn **Mua ngay** để đặt hàng liền, hoặc\n"
+                f"- Chọn **Thêm vào giỏ hàng** nếu muốn gom thêm sản phẩm khác rồi thanh toán sau.\n\n"
+                f"Delippy đã đính kèm sản phẩm bên dưới cho bạn dễ thao tác nhé!"
+            )
+
+            async def _save_user_message_checkout() -> None:
+                vector = await query_vector_lazy.get()
+                await conversation_repo.save_message(conversation.session_id, "user", message, vector)
+            asyncio.create_task(_save_user_message_checkout())
+
+            async def _save_assistant_message_checkout() -> None:
+                vector = await asyncio.to_thread(llm_client_wrapper.get_embedding, answer)
+                await conversation_repo.save_message(conversation.session_id, "assistant", answer, vector)
+            asyncio.create_task(_save_assistant_message_checkout())
+
+            await session_manager.add_message(conversation, "user", message)
+            await session_manager.add_message(conversation, "assistant", answer)
+            await session_manager.save_session(conversation)
+
+            _log_pipeline_timings(timings, t0, "CHECKOUT_INTENT")
+            return {
+                "summary": "CHECKOUT_INTENT",
+                "answer": answer,
+                "intent": "PRODUCT_INFO",
+                "mode": "product_info",
+                "confidence": 1.0,
+                "highlights": [],
+                "follow_up_actions": [],
+                "warnings": [],
+                "source_list": [],
+                "response_time_ms": (time.perf_counter() - t0) * 1000,
+                "tokens_used": 0,
+                "data": {
+                    "session_id": conversation.session_id,
+                    "memory": conversation.memory,
+                    "products": [last_product_detail]
+                }
+            }
+
+
         async def _save_user_message() -> None:
             vector = await query_vector_lazy.get()
             await conversation_repo.save_message(conversation.session_id, "user", message, vector)
@@ -684,9 +785,18 @@ class Orchestrator:
             # case re-asked "gia đình mấy người" after 3 tủ lạnh were already
             # shown, instead of answering "cái nào ngon nhất".
             cached_products = conversation.memory.get("search_results") or []
+            # "còn cái nào khác không"/"không ưng" is easily confused with an
+            # advisory ask (both often contain "nào"/"khác"), but means the
+            # OPPOSITE thing - the user wants DIFFERENT products, not more
+            # reasoning about the SAME ones. Excluded here so it falls to its
+            # own dedicated branch below (see is_alternative_request_query's
+            # own docstring) instead of re-grounding in - and re-displaying -
+            # the exact product(s) just rejected.
+            is_alternative_request = is_alternative_request_query(message)
             is_advisory_followup_on_cache = (
                 bool(cached_products)
                 and (is_advisory_query(message) or context._force_advisory)
+                and not is_alternative_request
                 and not _has_new_search_signal(context, prev_constraints)
             )
             missing_fields: List[str] = []
@@ -825,6 +935,40 @@ class Orchestrator:
                     print(f"\n[Orchestrator] Advisory follow-up - grounding advice in "
                           f"{len(cached_products)} cached product(s) already shown, skipped re-search.")
                     evidence = evidence_builder.build_search_evidence(cached_products)
+                elif is_alternative_request:
+                    # The user rejected what's cached and wants something
+                    # DIFFERENT - first check for already-fetched-but-not-yet-
+                    # shown items in the SAME cached pool (free, mirrors the
+                    # "xem thêm" pagination pattern), then broaden the search
+                    # itself (the same query-expansion the zero-result retry
+                    # uses, see query_expander) excluding every product
+                    # already shown - re-searching with the SAME query_q
+                    # unchanged would likely just re-find the same single
+                    # match the user already said no to.
+                    pointer = conversation.memory.get("search_pointer") or len(cached_products)
+                    unshown = cached_products[pointer:]
+                    shown_slugs = {p.get("slug") for p in cached_products if p.get("slug")}
+                    if unshown:
+                        print(f"\n[Orchestrator] Alternative-request follow-up - showing "
+                              f"{len(unshown)} more already-fetched product(s) from cache.")
+                        evidence = evidence_builder.build_search_evidence(unshown)
+                    else:
+                        print(f"\n[Orchestrator] Alternative-request follow-up - cache exhausted "
+                              f"({len(cached_products)} already shown), broadening search excluding those.")
+                        with _timed(timings, "search_or_expand"):
+                            evidence = await search_engine.search_or_expand(context)
+                        remaining = [p for p in evidence.products if p.get("slug") not in shown_slugs]
+                        if not remaining and context.query_q:
+                            for variant in await query_expander.expand(context.query_q):
+                                variant_context = context.copy(update={"query_q": variant, "category": None})
+                                variant_evidence = await search_engine.search_or_expand(variant_context)
+                                variant_remaining = [p for p in variant_evidence.products if p.get("slug") not in shown_slugs]
+                                if variant_remaining:
+                                    print(f"[Orchestrator] Broadened alternative search with "
+                                          f"'{variant}' found {len(variant_remaining)} new product(s).")
+                                    evidence, remaining = variant_evidence, variant_remaining
+                                    break
+                        evidence = evidence.copy(update={"products": remaining})
                 elif (local_matches := _filter_cached_products(cached_products, context)):
                     print(f"\n[Orchestrator] Answered from {len(cached_products)} cached product(s) already in memory "
                           f"({len(local_matches)} matched) - skipped API/LLM call.")
@@ -974,6 +1118,18 @@ class Orchestrator:
                 conversation.memory["search_pointer"] = len(evidence.related_products)
         elif context.intent == "PRODUCT_INFO":
             slug = context.product
+            # Safety-net: an ordinal position reference ("thứ 2") must
+            # resolve to an item actually in THIS session's just-shown list
+            # - the AI parser can occasionally hallucinate a real-looking
+            # slug from an unrelated earlier turn instead (see
+            # is_ordinal_position_query's own docstring). Reject and fall
+            # through to the ambiguous-reference ask below rather than
+            # confidently showing the wrong product.
+            if slug and is_ordinal_position_query(message):
+                shown_slugs = {p.get("slug") for p in (conversation.memory.get("search_results") or [])}
+                if slug not in shown_slugs:
+                    print(f"\n[Orchestrator] Rejecting ordinal-reference slug '{slug}' - not in this session's just-shown products.")
+                    slug = None
             # Safety Guard: only guess slug from query_q if it matches a previously shown product's name or slug
             if not slug and context.query_q:
                 search_results = conversation.memory.get("search_results") or []
@@ -998,11 +1154,15 @@ class Orchestrator:
                 with _timed(timings, "get_detail_api"):
                     evidence = await search_engine.get_detail(slug)
                 # Track the product just viewed so a follow-up "cái còn lại"
-                # after a comparison knows which of the two to exclude.
+                # after a comparison knows which of the two to exclude, and
+                # so a later checkout-confirm ("chốt đơn", "lấy cái này" -
+                # see is_checkout_intent_query) knows WHICH product to
+                # attach and confirm, without re-fetching it.
                 if evidence.details and evidence.details.get("name"):
                     conversation.memory["last_product_name"] = evidence.details["name"]
+                    conversation.memory["last_product_detail"] = evidence.details
 
-                # Product Deep-Dive: every PRODUCT_INFO turn now gets a real
+                # Product Deep-Dive: every FULL PRODUCT_INFO turn gets a real
                 # market-knowledge analysis, not just an explicit "tư vấn kỹ
                 # hơn về X" ask - the user wants "xem chi tiết X" itself to
                 # always read as a consult, not a bare spec dump. The
@@ -1015,7 +1175,13 @@ class Orchestrator:
                 # rather than invents if it doesn't recognize the model).
                 # response_formatter's DETAIL branch renders this IN PLACE OF
                 # the raw description snippet.
-                if evidence.details:
+                #
+                # Skipped entirely for a NARROW ask ("giá bao nhiêu", "còn
+                # size nào", "cho xem hình") - response_planner routes those
+                # to DETAIL_FOCUS instead of DETAIL (see
+                # classify_product_focus), and a bare field lookup doesn't
+                # need a ~150-word market analysis it will never render.
+                if evidence.details and not is_narrow_product_query(classify_product_focus(message)):
                     dd_slug = evidence.details.get("slug")
                     with _timed(timings, "deep_dive"):
                         deep_dive_text = await cache_repo.get_cached_search(f"deep_dive:{dd_slug}") if dd_slug else None
@@ -1163,6 +1329,13 @@ class Orchestrator:
                 follow_up_actions = [SEE_MORE_ACTION]
         elif skip_products_this_turn:
             response_products = []
+        elif context.intent == "PRODUCT_INFO" and evidence.details:
+            # Attach the resolved product back into data.products so the
+            # frontend's existing product-card UI renders it (thumbnail,
+            # price...) under the text - both the full DETAIL card and a
+            # narrow DETAIL_FOCUS answer ("có hình không") need this, since
+            # neither included any product data in the API response before.
+            response_products = [evidence.details]
 
         _log_pipeline_timings(timings, t0, context.intent)
         return {

@@ -3,7 +3,10 @@ from app.models.evidence import Evidence
 from app.models.shopping_context import ShoppingContext
 from app.models.response_plan import ResponsePlan
 from app.knowledge.ontology import ontology
-from app.understanding.intent_classifier import is_too_vague_for_results, needs_consultation
+from app.understanding.intent_classifier import (
+    is_too_vague_for_results, needs_consultation,
+    classify_product_focus, is_narrow_product_query,
+)
 
 class ResponsePlanner:
     """Sits between retrieval and response_formatter. Decides WHAT kind of
@@ -29,6 +32,16 @@ class ResponsePlanner:
         # generic LLM formatter same as COMPARE/FAQ below.
         if intent == "PRODUCT_INFO":
             if evidence.details:
+                # A narrow ask ("giá bao nhiêu", "còn size nào", "cho xem
+                # hình") gets a short, targeted reply instead of the full
+                # detail card + market-analysis deep-dive - see
+                # classify_product_focus's own docstring for why.
+                focus = classify_product_focus(query)
+                if is_narrow_product_query(focus):
+                    return ResponsePlan(
+                        type="DETAIL_FOCUS", next_action=next_action, target=target,
+                        reason=reason, product_focus=focus,
+                    )
                 return ResponsePlan(type="DETAIL", next_action=next_action, target=target, reason=reason)
             if evidence.error:
                 return ResponsePlan(type="CLARIFICATION", next_action=next_action, target=target, reason=reason)

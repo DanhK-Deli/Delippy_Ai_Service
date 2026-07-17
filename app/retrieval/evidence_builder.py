@@ -63,10 +63,21 @@ class EvidenceBuilder:
 
     def build_detail_evidence(self, detail: Dict[str, Any], reviews_summary: Optional[Dict[str, Any]] = None, related: List[Dict[str, Any]] = None) -> Evidence:
         cleaned_detail = {
+            # id/thumbnail/discount_percent mirror build_search_evidence's own
+            # ProductCard-shaped fields (see app/models/ecommerce/product.py) -
+            # orchestrator.py attaches evidence.details straight into the
+            # API response's data.products for a PRODUCT_INFO turn so the
+            # frontend's existing product-card UI can render it (thumbnail
+            # image included), the same way it already does for SEARCH
+            # results. Without these three, a PRODUCT_INFO reply had no
+            # image data anywhere in the response at all.
+            "id": detail.get("id"),
             "name": detail.get("name"),
             "slug": detail.get("slug"),
+            "thumbnail": detail.get("thumbnail"),
             "price": detail.get("price"),
             "original_price": detail.get("original_price"),
+            "discount_percent": detail.get("discount_percent"),
             "stock": detail.get("stock"),
             "rating": detail.get("rating"),
             "sold_count": detail.get("sold_count"),

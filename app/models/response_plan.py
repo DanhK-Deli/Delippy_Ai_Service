@@ -10,7 +10,7 @@ class ResponsePlan(BaseModel):
 
     type: Literal[
         "SEARCH_RESULT", "ZERO_RESULT", "CONSULT", "COMPARE",
-        "DETAIL", "FAQ", "CLARIFICATION", "FOLLOWUP",
+        "DETAIL", "DETAIL_FOCUS", "FAQ", "CLARIFICATION", "FOLLOWUP",
     ] = "SEARCH_RESULT"
     # Mirrors the old conversation.memory["awaiting"]["action"] values
     # (SELECT_PRODUCT / SEARCH / PRODUCT_INFO / COMPARE) - see
@@ -35,3 +35,9 @@ class ResponsePlan(BaseModel):
     # "related_product") - not shown to the user, just makes a later
     # `awaiting` dump readable without re-deriving the reasoning.
     reason: Optional[str] = None
+    # Only set when type == "DETAIL_FOCUS" - which narrow field(s) the user
+    # actually asked about (see intent_classifier.classify_product_focus).
+    # Kept separate from `target` (which persists into
+    # conversation.memory["awaiting"] for a later follow-up to resolve
+    # against) since this is purely a rendering instruction for THIS turn.
+    product_focus: Optional[Dict[str, bool]] = None

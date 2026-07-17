@@ -147,10 +147,62 @@ class ResponseFormatter:
                 return random.choice(ontology.prompt_probe_responses)
             bucket = context.sub_intent if context.sub_intent in ("out_of_scope", "toxicity", "help_capabilities") else "out_of_scope"
             responses = ontology.chitchat_responses.get(bucket, [])
+
+
             print(f"\n[Formatter] Skipped LLM Formatting: CHITCHAT/{bucket} matches deterministic response (Tokens: 0, Cost: $0.00)\n")
             if responses:
                 return random.choice(responses)
             return "Mình là trợ lý mua sắm của Delippy nên chưa hỗ trợ được việc này. Bạn cần tìm sản phẩm gì thì cứ nói mình nghe nhé!"
+
+        # 1.9 Detail Focus - a narrow PRODUCT_INFO ask (giá/size-màu/hình
+        # only, see response_planner.py's classify_product_focus check)
+        # gets a short, targeted reply instead of the full detail card -
+        # orchestrator.py already skipped the Deep-Dive market-analysis call
+        # for this same turn, so there's no deep_dive_text to render here
+        # even if evidence carried one from a stale copy.
+        if plan.type == "DETAIL_FOCUS":
+            d = evidence.details
+            focus = plan.product_focus or {}
+            name = d.get("name")
+            sizes = [s.get("name") for s in d.get("sizes", []) if s.get("name")]
+            colors = d.get("colors", [])
+
+            reply = None
+            if focus.get("price") or focus.get("variant"):
+                reply = await llm_client_wrapper.format_product_focus_reply(
+                    name, focus, d.get("price"), d.get("stock"), sizes, colors,
+                )
+            if not reply:
+                # Deterministic fallback - LLM unavailable/failed, or the ask
+                # was image-only (image is never sent through the LLM at
+                # all; there's no fact for it to phrase).
+                lines = []
+                if focus.get("price"):
+                    stock_status = "còn hàng" if (d.get("stock") or 0) > 0 else "hết hàng"
+                    price = d.get("price")
+                    price_str = f"{price:,.0f}đ" if price is not None else "chưa rõ"
+                    lines.append(f"**{name}** hiện có giá **{price_str}**, tình trạng: {stock_status}.")
+                if focus.get("variant"):
+                    if sizes or colors:
+                        bits = []
+                        if sizes:
+                            bits.append(f"kích cỡ: {', '.join(sizes)}")
+                        if colors:
+                            bits.append(f"màu sắc: {', '.join(colors)}")
+                        lines.append(f"**{name}** hiện có {'; '.join(bits)}.")
+                    else:
+                        lines.append(f"**{name}** hiện chưa có thông tin size/màu cụ thể, bạn liên hệ shop để rõ hơn nhé.")
+                reply = " ".join(lines)
+
+            if focus.get("image"):
+                image_note = f"Hình ảnh chi tiết của **{name}** bạn xem trực tiếp ở phần hiển thị sản phẩm nhé!"
+                reply = f"{reply}\n\n{image_note}" if reply else image_note
+
+            if not reply:
+                reply = f"Đây là thông tin bạn hỏi về **{name}**."
+
+            print(f"\n[Formatter] DETAIL_FOCUS ({', '.join(k for k, v in focus.items() if v)}) - narrow reply, deep-dive skipped\n")
+            return reply.strip()
 
         # 2. Detail / Product Info (Deterministic format if we just want a simple description)
         if plan.type == "DETAIL":

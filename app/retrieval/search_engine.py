@@ -516,13 +516,21 @@ class SearchEngine:
         design (a wrong filter only narrows the candidate pool, it doesn't
         guarantee zero results the way a wrong category_id did against
         /products/search), so query_expander's LLM call would just be
-        spending tokens on a problem vector search doesn't have. "hybrid"
-        skips it for the same reason - _search_hybrid already cross-tries
-        BOTH vector and legacy as its own self-heal before returning here,
-        so a zero-result Evidence at this point already reflects both paths
-        failing, not just one path that expansion could still rescue."""
+        spending tokens on a problem vector search doesn't have.
+
+        "hybrid" USED to skip it too, on the theory that _search_hybrid's own
+        vector-vs-legacy cross-try already self-heals before returning here.
+        That's only true for a retrieval-METHOD problem (vector missed it,
+        legacy might not) - it does nothing for a VOCABULARY mismatch, where
+        the query word itself just isn't the word the catalog uses (e.g.
+        "vớ" vs the real listings' "tất"): both the vector AND legacy paths
+        get the exact same original query_q, so both fail together for the
+        exact same reason, and expansion's whole job - trying a genuinely
+        different word - never got a chance to run. Confirmed live: the AI
+        parser had already generated the right synonym ("tất") in
+        expanded_queries, but this early return discarded it unused."""
         evidence = await self.search(context)
-        if settings.RETRIEVAL_MODE in ("vector", "hybrid") or evidence.products or not context.query_q:
+        if settings.RETRIEVAL_MODE == "vector" or evidence.products or not context.query_q:
             return evidence
 
         # Category resolution is best-effort and can be wrong (find_category()

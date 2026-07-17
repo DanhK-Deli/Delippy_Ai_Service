@@ -523,8 +523,8 @@
       "situation_type": "ask_more_info",
       "used_by_intents": [],
       "required_variables": [],
-      "content": "Để tra cứu thông tin này, mình cần bạn đăng nhập trước nhé. Bạn có thể đăng nhập rồi hỏi lại, hoặc cho mình xin mã đơn hàng/số điện thoại đã đặt hàng để mình hỗ trợ nhanh hơn.",
-      "notes": "Guest (không token) cố thực hiện Protected Action — theo .agents/AGENTS.md quy tắc 3, KHÔNG gọi API backend, không tạo ticket, dù lặp lại bao nhiêu lần trong phiên."
+      "content": "Để hỗ trợ việc này, mình cần bạn đăng nhập vào tài khoản Delippy trước nhé. Bạn đăng nhập xong thì nhắn lại cho mình để mình tiếp tục hỗ trợ nha!",
+      "notes": "Guest (không token) cố thực hiện Protected Action — theo .agents/AGENTS.md quy tắc 3, KHÔNG gọi API backend, không tạo ticket, dù lặp lại bao nhiêu lần trong phiên. Deliberately does NOT ask for mã đơn hàng/số điện thoại here (used to say '...hoặc cho mình xin mã đơn hàng/số điện thoại...') - sending those never actually authenticates the guest, it only made customers think the bot was still collecting the order code and re-send it, which (combined with pending not being cleared on this path) drove an infinite loop."
     },
     {
       "id": "RT_ERROR_RATE_LIMITED",

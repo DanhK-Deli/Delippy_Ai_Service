@@ -179,6 +179,25 @@
       "(Category in context: \"thời trang nam\")"
     ],
     "output": {"intent": "FAQ", "category": "thời trang nam", "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": null, "query_q": "áo size", "expanded_queries": ["bảng size áo nam", "chọn size nam"]}
+  },
+  {
+    "id": "product_own_size_availability_product_info",
+    "anchor": false,
+    "query": "sản phẩm này có mấy loại size",
+    "context": [
+      "(Products already shown: [{\"slug\":\"vo-xinh-yeu-cho-be-abc123\",\"name\":\"Vớ xinh yêu cho bé\"}])"
+    ],
+    "output": {"intent": "PRODUCT_INFO", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": "vo-xinh-yeu-cho-be-abc123", "query_q": null, "expanded_queries": []}
+  },
+  {
+    "id": "ordinal_reference_product_info_strict_to_options",
+    "anchor": false,
+    "query": "cái áo dài thứ 2 có size không",
+    "context": [
+      "(Products already shown: [{\"slug\":\"set-bo-ao-dai-49052\",\"name\":\"Set bộ áo dài 49052\"},{\"slug\":\"set-bo-ao-dai-thiet-ke-xyz\",\"name\":\"SET BỘ ÁO DÀI THIẾT KẾ\"}])",
+      "(Conversation History may also mention OTHER, unrelated products from earlier turns - those must be ignored for this ordinal reference; only count position within the Products already shown list above.)"
+    ],
+    "output": {"intent": "PRODUCT_INFO", "category": null, "brand": null, "price_min": null, "price_max": null, "purpose": null, "compare_targets": [], "product": "set-bo-ao-dai-thiet-ke-xyz", "query_q": null, "expanded_queries": []}
   }
 ]
 

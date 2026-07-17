@@ -8,3 +8,11 @@ __pycache__
 *.pyd
 *.log
 models/
+.agents/
+.claude/
+.vscode/
+api-docs/
+docs/
+scripts/
+postman_collection.json
+*.md

@@ -339,8 +339,21 @@ class Ontology:
         # the same way aliases do. Without this, a synonym-recognized term
         # would still be sent to the backend verbatim and legitimately return
         # zero results.
+        #
+        # Skips synonyms.json keys formatted as a CATALOG LABEL rather than a
+        # natural search phrase (containing " - ", e.g. "ăn vặt - bánh kẹo",
+        # "sữa - tả - bình sữa" - a UI tab name, not product wording).
+        # Substituting one of THOSE defeats this function's own stated
+        # purpose ("so search actually finds it"): no real product title
+        # contains that literal dash-joined label either, so the rewrite
+        # guarantees zero results instead of preventing them. Confirmed
+        # live: query_normalizer.normalize() turned "banh snack" into "banh
+        # ăn vặt - bánh kẹo" (per-word substitution, "snack" -> its
+        # subcategory's own label), corrupting the actual search text sent
+        # downstream. A natural-phrase canonical ("điện thoại di động" for
+        # "smartphone") is unaffected - it has no such separator.
         for canonical, syn_list in self.synonyms.items():
-            if term_clean in syn_list:
+            if term_clean in syn_list and " - " not in canonical:
                 return canonical
         # No-diacritics fallback ("dien thoai" -> "điện thoại") - only tried
         # when the term itself has no dấu to begin with (a term that already
@@ -349,7 +362,11 @@ class Ontology:
         # reload() (see there) so this costs one more O(1) dict lookup, same
         # as the accented attempts above.
         if _strip_diacritics(term_clean) == term_clean:
-            stripped = self._aliases_stripped.get(term_clean) or self._synonym_lookup_stripped.get(term_clean)
+            stripped = self._aliases_stripped.get(term_clean)
+            if not stripped:
+                syn_stripped = self._synonym_lookup_stripped.get(term_clean)
+                if syn_stripped and " - " not in syn_stripped:
+                    stripped = syn_stripped
             if stripped:
                 return stripped
         return term_clean
@@ -623,18 +640,31 @@ class Ontology:
         real Toyota once browse ignored the brand word entirely). Also
         requires every meaningful word in query_q to already be part of the
         subcategory's own vocabulary (its name + top-level category name +
-        synonyms) - nothing left over."""
+        synonyms) - nothing left over.
+
+        No-diacritics gap fixed: normalize_term() only rewrites whole KNOWN
+        alias/synonym terms ("oto"->"ô tô"), not arbitrary bare syllables
+        ("dien"/"thoai" have no such entry, so they pass through unchanged) -
+        so find_category() above already resolves a no-dấu query correctly
+        (via its own fallback tiers), but the subset check below used to
+        compare those still-unaccented words against the ACCENTED-only
+        subcategory vocabulary and always fail. Confirmed live: "dien thoai"
+        correctly resolved to "điện thoại di động" above, yet this returned
+        False, so ranker.py's category_id-trust branch never fired and every
+        genuine phone got rejected for "0 keyword match"."""
         if not subcategory or not query_q:
             return False
         normalized_q = " ".join(self.normalize_term(w) for w in query_q.lower().split())
         cat_info = self.find_category(normalized_q)
         if not cat_info or cat_info.get("subcategory") != subcategory:
             return False
-        query_words = self._category_query_words(normalized_q)
+        is_no_diacritics = bool(normalized_q) and _strip_diacritics(normalized_q) == normalized_q
+        query_words = self._category_query_words(normalized_q, stripped=is_no_diacritics)
         for cat_name, cat_data in self.categories.items():
             if cat_data.get("id") != cat_info["id"]:
                 continue
-            return query_words.issubset(self._subcategory_words(cat_name, subcategory))
+            sub_words = self._subcategory_words(cat_name, subcategory, stripped=is_no_diacritics)
+            return query_words.issubset(sub_words)
         return False
 
     def strip_category_noun(self, query_q: Optional[str], subcategory: Optional[str]) -> str:
@@ -651,20 +681,31 @@ class Ontology:
         distinguishing term (brand, model...) is left over. Returns query_q
         unchanged if subcategory/category can't be resolved, or if stripping
         would remove EVERYTHING (that all-restated case belongs to
-        query_restates_subcategory()'s browse path instead, not here)."""
+        query_restates_subcategory()'s browse path instead, not here).
+
+        No-diacritics gap fixed - same as query_restates_subcategory()'s own
+        note: a no-dấu query_q ("dien thoai toyota") never matched the
+        ACCENTED-only subcategory vocabulary this compared against, so the
+        bare category noun never got stripped and "toyota" stayed buried
+        behind "dien thoai", which the backend's AND-token match then failed
+        on entirely."""
         if not subcategory or not query_q:
             return query_q or ""
         cat_info = self.find_category(query_q)
         if not cat_info:
             return query_q
+        is_no_diacritics = _strip_diacritics(query_q.lower()) == query_q.lower()
         sub_words = None
         for cat_name, cat_data in self.categories.items():
             if cat_data.get("id") == cat_info["id"]:
-                sub_words = self._subcategory_words(cat_name, subcategory)
+                sub_words = self._subcategory_words(cat_name, subcategory, stripped=is_no_diacritics)
                 break
         if not sub_words:
             return query_q
-        kept = [w for w in query_q.split() if w.lower() not in sub_words]
+        if is_no_diacritics:
+            kept = [w for w in query_q.split() if _strip_diacritics(w.lower()) not in sub_words]
+        else:
+            kept = [w for w in query_q.split() if w.lower() not in sub_words]
         return " ".join(kept) if kept else query_q
 
     def product_has_category_signal(self, product_name: str, category_id: int) -> bool:

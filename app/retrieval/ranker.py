@@ -1,7 +1,7 @@
 import re
 from typing import List, Dict, Any, Optional
 from app.models.shopping_context import ShoppingContext
-from app.knowledge.ontology import ontology
+from app.knowledge.ontology import ontology, _strip_diacritics
 
 def _query_words(query_q: Optional[str]) -> List[str]:
     if not query_q:
@@ -17,8 +17,21 @@ def _word_matches(word: str, text: str) -> bool:
     query word "mazda". Still requires a real boundary BEFORE the word (only
     the trailing side is loosened), so this does NOT reopen the classic
     substring-collision bug ("áo" matching inside "cháo") - that failure was
-    always about a missing LEADING boundary, untouched here."""
-    return bool(re.search(rf"\b{re.escape(word)}(?:\b|(?=\d))", text))
+    always about a missing LEADING boundary, untouched here.
+
+    No-diacritics fallback (same rationale/guard as ontology.py's own copies
+    of this pattern): `text` is always a REAL product title from the
+    catalog, so it's always properly accented - a `word` typed without dấu
+    ("dien"/"thoai") can never literally match it. Only tried when `word`
+    itself has no dấu to begin with. Confirmed live: category_id resolved
+    correctly for "dien thoai", but every genuine phone got scored 0 keyword
+    matches and rejected outright, because this check compared unaccented
+    query words against accented product titles."""
+    if re.search(rf"\b{re.escape(word)}(?:\b|(?=\d))", text):
+        return True
+    if _strip_diacritics(word) == word:
+        return bool(re.search(rf"\b{re.escape(word)}(?:\b|(?=\d))", _strip_diacritics(text)))
+    return False
 
 def top_match_confidence(product_name: str, query_q: Optional[str]) -> Optional[float]:
     """Fraction of query_q's meaningful words that literally appear (word-

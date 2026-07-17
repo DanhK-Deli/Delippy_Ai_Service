@@ -164,6 +164,13 @@ async def _run_business_objects(
     # are needed, so a guest still pays for that one call before being
     # blocked; there is no cheaper way to know auth is required here). ──
     if business_object_executor.requires_auth(business_object_ids) and not token:
+        # Must clear pending here, not just on the backend-401 hard_failure
+        # path below - otherwise a COLLECTING_ENTITY/AWAITING_CONFIRMATION
+        # left over from before the customer lost auth (token expired,
+        # logged out mid-flow...) survives this return. The next turn then
+        # resumes straight back into this same gate with the same missing
+        # token -> same reply -> forever, since nothing ever clears it.
+        cs.clear_pending(memory)
         answer = render_or_fallback("RT_ERROR_UNAUTHENTICATED", {})
         return HelpResponse(answer=answer, case=case, mode="unauthenticated", warnings=["fail-fast: requires auth, no token supplied"])
 
